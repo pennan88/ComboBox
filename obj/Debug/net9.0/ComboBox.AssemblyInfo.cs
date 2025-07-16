@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyDescriptionAttribute("Reusable Blazor Virtualized ComboBox Component with Search and Infinite Scroll")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+192ea287315d76d71dc9202445fcba1ad3687549")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+56e7545a71c90a31d26379d494dcbd25a033d074")]
 [assembly: System.Reflection.AssemblyProductAttribute("ComboBox")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ComboBox")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

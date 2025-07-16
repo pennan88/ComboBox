@@ -11,6 +11,7 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Nullable>enable</Nullable>
     <RootNamespace>ComboBox</RootNamespace>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
 
