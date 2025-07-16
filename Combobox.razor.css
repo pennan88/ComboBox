@@ -1,0 +1,98 @@
+﻿.combo-container {
+  position: relative;
+  height: 100%;
+  font-family: Lato, sans-serif;
+}
+
+/* Trigger button */
+.combo-trigger {
+  width: 100%;
+  padding: 10px 12px;
+  height: 100%;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: 0.125rem;
+  background-color: #ffffff;
+  border: 1px solid #d9d9d9;
+}
+
+.combo-chevron {
+  margin-left: 8px;
+  font-size: 14px;
+}
+
+/* Dropdown panel */
+.combo-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% + 40px);
+  /*box-shadow: 0 4px 12px rgba(0,0,0,0.1);*/
+  margin-top: 4px;
+  z-index: 1000;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  overflow-x: auto;
+  max-height: 320px;
+  border: 1px solid #d9d9d9;
+  background-color: #ffffff;
+}
+
+/* Search input inside dropdown */
+.combo-search-input-container {
+  padding: 8px 12px;
+  display: flex;
+  gap: 8px;
+  flex-direction: row;
+  align-items: center;
+}
+
+.combo-search-input {
+  border: none;
+  font-size: 14px;
+  outline: none;
+}
+
+/* Item styling */
+.combo-item {
+  font-family: Lato, sans-serif;
+  padding: 6px 8px;
+  margin: 4px;
+  cursor: pointer;
+  border-radius: 0.125rem;
+}
+
+.combo-item:last-child {
+  border-bottom: none;
+}
+
+.combo-item:hover {
+  background-color: #f2f8f7;
+}
+
+.combo-item.highlighted {
+  background-color: #f2f8f7;
+}
+
+.combo-item-content {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.combo-checkmark {
+  margin-left: 8px;
+  font-weight: bold;
+}
+
+.combo-loading {
+  padding: 10px 14px;
+  text-align: center;
+  font-style: italic;
+}

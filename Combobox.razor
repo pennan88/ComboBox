@@ -1,0 +1,293 @@
+﻿@typeparam TItem
+@implements IAsyncDisposable
+@inject IJSRuntime Js
+
+
+<div class="combo-container" @ref="_rootRef">
+    <button class="combo-trigger" @onclick="ToggleDropdown">
+        @if (SelectedItem is not null)
+        {
+            if (SelectedTemplate is not null)
+            {
+                @SelectedTemplate(SelectedItem)
+            }
+            else
+            {
+                <span>@SelectedItem?.ToString()</span>
+            }
+        }
+        else
+        {
+            <span class="combo-placeholder">@Placeholder</span>
+        }
+
+        <span class="combo-chevron">
+            @(IsOpen ? "▼" : "▲")
+        </span>
+    </button>
+
+    @if (IsOpen)
+    {
+        <div class="combo-dropdown" @onmousedown:preventDefault>
+            <div class="combo-search-input-container">
+                <span class="combo-search-icon">🔍</span>
+                <input @ref="_elementReference" class="combo-search-input" placeholder="Search..." value="@SearchText"
+                    @oninput="OnInput" @onkeydown="HandleKeyDown" />
+            </div>
+
+            <hr class="combo-divider" />
+
+            <Virtualize @ref="_virtualizeRef" ItemsProvider="LoadItems" ItemSize="40">
+                <ItemContent Context="item">
+                    <div class="combo-item @(IsHighlighted(item) ? "highlighted" : "")"
+                        @onclick="@(() => ItemClicked(item))">
+                        <div class="combo-item-content">
+                            @ItemTemplate(item)
+                        </div>
+                    </div>
+                </ItemContent>
+            </Virtualize>
+
+            @if (ShowNoResults)
+            {
+                <div class="combo-no-results">
+                    @if (NoResultsTemplate == null)
+                    {
+                        <p>No results</p>
+                    }
+                    else
+                    {
+                        @NoResultsTemplate
+                    }
+                </div>
+            }
+
+            @if (IsLoading)
+            {
+                <div class="combo-loading">
+                    Loadin...
+                </div>
+            }
+        </div>
+    }
+</div>
+
+
+
+@code {
+    private ElementReference? _rootRef;
+    private bool IsLoading { get; set; }
+    private IJSObjectReference? _outsideClickListener;
+    private DotNetObjectReference<Combobox<TItem>>? _dotNetObjectReference;
+    private CancellationTokenSource? _debounceCts;
+
+    [Parameter] public string Placeholder { get; set; } = "Välj...";
+
+    private bool IsSelectedItem(TItem item)
+    {
+        return SelectedItem is not null && SelectedItem.Equals(item);
+    }
+
+    [Parameter] public bool ShowCheckmarkInList { get; set; } = true;
+
+    [Parameter] public RenderFragment? NoResultsTemplate { get; set; }
+
+    private bool ShowNoResults => _visibleItems.Count == 0 && !string.IsNullOrWhiteSpace(SearchText);
+
+    /// For remote, paged API
+    [Parameter]
+    public Func<string, int, int, ValueTask<ItemsProviderResult<TItem>>>? DataProvider { get; set; }
+
+    /// For static in-memory list
+    [Parameter]
+    public List<TItem>? StaticData { get; set; }
+
+    [Parameter] public RenderFragment<TItem> ItemTemplate { get; set; } = default!;
+
+    [Parameter] public RenderFragment<TItem>? SelectedTemplate { get; set; }
+
+    [Parameter] public EventCallback<TItem> OnSelected { get; set; }
+
+    private string SearchText { get; set; } = "";
+    private Virtualize<TItem>? _virtualizeRef;
+    private bool IsOpen { get; set; }
+    private TItem? SelectedItem { get; set; }
+
+    private ElementReference _elementReference;
+    private List<TItem> _visibleItems = [];
+    private int _highlightedIndex;
+
+    private async Task ToggleDropdown()
+    {
+        IsOpen = !IsOpen;
+        if (IsOpen)
+        {
+            SearchText = "";
+            _highlightedIndex = 0;
+            _ = Task.Delay(500).ContinueWith(_ => { InvokeAsync(() => _elementReference.FocusAsync()); });
+            _ = RefreshItems();
+
+            // Register outside click
+            _dotNetObjectReference = DotNetObjectReference.Create(this);
+            _outsideClickListener = await Js.InvokeAsync<IJSObjectReference>(
+            "comboBoxRegisterOutsideClick",
+            _rootRef,
+            _dotNetObjectReference
+            );
+        }
+        else
+        {
+            await RemoveOutsideClickListener();
+        }
+    }
+
+    private async Task OnInput(ChangeEventArgs e)
+    {
+        SearchText = e.Value?.ToString() ?? "";
+
+        if (_debounceCts != null)
+        {
+            await _debounceCts.CancelAsync();
+        }
+
+        _debounceCts = new CancellationTokenSource();
+        var token = _debounceCts.Token;
+
+        try
+        {
+            await Task.Delay(300, token);
+            await RefreshItems();
+        }
+        catch (TaskCanceledException)
+        {
+        }
+    }
+
+    private async Task RefreshItems()
+    {
+        if (_virtualizeRef != null)
+        {
+            await _virtualizeRef.RefreshDataAsync();
+        }
+    }
+
+    private async ValueTask<ItemsProviderResult<TItem>> LoadItems(ItemsProviderRequest request)
+    {
+        if (DataProvider is not null)
+        {
+            IsLoading = true;
+            StateHasChanged();
+            // Server-side mode
+            var result = await DataProvider(SearchText, request.StartIndex, request.Count);
+            _visibleItems = result.Items.ToList();
+            IsLoading = false;
+            StateHasChanged();
+            return result;
+        }
+
+        if (StaticData is not null)
+        {
+            // Client-side mode
+            var filtered = StaticData
+            .Where(item => ItemMatches(item, SearchText))
+            .ToList();
+
+            var page = filtered
+            .Skip(request.StartIndex)
+            .Take(request.Count)
+            .ToList();
+
+            _visibleItems = page;
+
+            return new ItemsProviderResult<TItem>(page, filtered.Count);
+        }
+
+        // No data
+        return new ItemsProviderResult<TItem>(new List<TItem>(), 0);
+    }
+
+    private static bool ItemMatches(TItem item, string search)
+    {
+        if (string.IsNullOrWhiteSpace(search)) return true;
+        var str = item?.ToString() ?? "";
+        return str.Contains(search, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool IsHighlighted(TItem item)
+    {
+        return item != null && _visibleItems.ElementAtOrDefault(_highlightedIndex)?.Equals(item) == true;
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (_visibleItems.Count == 0) return;
+
+        if (e.Key == "ArrowDown")
+        {
+            _highlightedIndex = Math.Min(_highlightedIndex + 1, _visibleItems.Count - 1);
+            StateHasChanged();
+        }
+        else if (e.Key == "ArrowUp")
+        {
+            _highlightedIndex = Math.Max(_highlightedIndex - 1, 0);
+            StateHasChanged();
+        }
+        else if (e.Key == "Enter")
+        {
+            if (_highlightedIndex >= 0 && _highlightedIndex < _visibleItems.Count)
+            {
+                await ItemClicked(_visibleItems[_highlightedIndex]);
+            }
+        }
+        else if (e.Key == "Escape")
+        {
+            IsOpen = false;
+        }
+    }
+
+    private async Task ItemClicked(TItem item)
+    {
+        SelectedItem = item;
+        IsOpen = false;
+        await OnSelected.InvokeAsync(item);
+    }
+
+
+    private async Task RemoveOutsideClickListener()
+    {
+        if (_outsideClickListener != null)
+        {
+            await _outsideClickListener.InvokeVoidAsync("dispose");
+            await _outsideClickListener.DisposeAsync();
+            _outsideClickListener = null;
+        }
+
+        _dotNetObjectReference?.Dispose();
+        _dotNetObjectReference = null;
+    }
+
+    [JSInvokable]
+    public async Task CloseDropdown()
+    {
+        IsOpen = false;
+        await RemoveOutsideClickListener();
+        StateHasChanged();
+    }
+
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_outsideClickListener != null)
+        {
+            await _outsideClickListener.DisposeAsync();
+        }
+
+        _dotNetObjectReference?.Dispose();
+        _debounceCts?.Dispose();
+
+        if (_virtualizeRef is IAsyncDisposable asyncVirtualize)
+        {
+            await asyncVirtualize.DisposeAsync();
+        }
+    }
+}
