@@ -27,6 +27,9 @@ jobs:
           echo "##[set-output name=version_suffix;]$VERSION_SUFFIX"
         id: vars
 
+      - name: Build
+        run: dotnet build -c Release
+
       - name: 🛠️ Pack
         run: dotnet pack -c Release /p:PackageVersion=1.0.${{ github.run_number }}-${{ steps.vars.outputs.version_suffix }} --output ./nupkgs
 
