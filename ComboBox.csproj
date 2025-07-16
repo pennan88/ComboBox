@@ -2,8 +2,15 @@
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
+    <RazorLangVersion>8.0</RazorLangVersion>
+    <PackageId>Combobox</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Alexander Fagrelius</Authors>
+    <Description>Reusable Blazor Virtualized Combobox Component with Search and Infinite Scroll</Description>
+    <PackageTags>blazor;combobox;autocomplete;virtualize</PackageTags>
+    <RepositoryUrl>https://github.com/pennan88/ComboBox</RepositoryUrl>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
 

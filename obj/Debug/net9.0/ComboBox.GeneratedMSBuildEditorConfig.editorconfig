@@ -12,7 +12,7 @@ build_property.RootNamespace = ComboBox
 build_property.ProjectDir = C:\Users\AlexanderFagrelius\source\combobox\ComboBox\
 build_property.EnableComHosting = 
 build_property.EnableGeneratedComInterfaceComImportInterop = 
-build_property.RazorLangVersion = 9.0
+build_property.RazorLangVersion = 8.0
 build_property.SupportLocalizedComponentNames = 
 build_property.GenerateRazorMetadataSourceChecksumAttributes = 
 build_property.MSBuildProjectDirectory = C:\Users\AlexanderFagrelius\source\combobox\ComboBox
@@ -24,6 +24,6 @@ build_property.EnableCodeStyleSeverity =
 build_metadata.AdditionalFiles.TargetPath = X0ltcG9ydHMucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = 
 
-[C:/Users/AlexanderFagrelius/source/combobox/ComboBox/Combobox.razor]
-build_metadata.AdditionalFiles.TargetPath = Q29tYm9ib3gucmF6b3I=
-build_metadata.AdditionalFiles.CssScope = b-3xtsszajfm
+[C:/Users/AlexanderFagrelius/source/combobox/ComboBox/Components/Combobox.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xDb21ib2JveC5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = b-fexx50ko3l
