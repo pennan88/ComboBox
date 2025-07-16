@@ -13,7 +13,7 @@
             }
             else
             {
-                <span>@SelectedItem?.ToString()</span>
+                <span>@GetItemString(SelectedItem)</span>
             }
         }
         else
@@ -42,7 +42,14 @@
                     <div class="combo-item @(IsHighlighted(item) ? "highlighted" : "")"
                         @onclick="@(() => ItemClicked(item))">
                         <div class="combo-item-content">
-                            @ItemTemplate(item)
+                            @if (ItemTemplate != null)
+                            {
+                                @ItemTemplate(item)
+                            }
+                            else
+                            {
+                                <span>@GetItemString(item)</span>
+                            }
                         </div>
                     </div>
                 </ItemContent>
@@ -82,6 +89,9 @@
     private CancellationTokenSource? _debounceCts;
 
     [Parameter] public string Placeholder { get; set; } = "Välj...";
+    [Parameter]
+    public Func<TItem, string>? ToStringFunc { get; set; }
+
 
     private bool IsSelectedItem(TItem item)
     {
@@ -139,6 +149,12 @@
         {
             await RemoveOutsideClickListener();
         }
+    }
+    private string GetItemString(TItem item)
+    {
+        if (ToStringFunc != null)
+            return ToStringFunc(item);
+        return item?.ToString() ?? "";
     }
 
     private async Task OnInput(ChangeEventArgs e)
@@ -206,10 +222,10 @@
         return new ItemsProviderResult<TItem>(new List<TItem>(), 0);
     }
 
-    private static bool ItemMatches(TItem item, string search)
+    private bool ItemMatches(TItem item, string search)
     {
         if (string.IsNullOrWhiteSpace(search)) return true;
-        var str = item?.ToString() ?? "";
+        var str = GetItemString(item);
         return str.Contains(search, StringComparison.OrdinalIgnoreCase);
     }
 
