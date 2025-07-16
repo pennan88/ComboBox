@@ -21,17 +21,11 @@ jobs:
       - name: 🔄 Restore
         run: dotnet restore
 
-      - name: 🔢 Set dynamic version suffix
-        id: vars
-        run: |
-          VERSION_SUFFIX=ci.${GITHUB_SHA::8}
-          echo "VERSION_SUFFIX=$VERSION_SUFFIX" >> $GITHUB_ENV
-
       - name: 🏗️ Build
-        run: dotnet build -c Release /p:PackageVersion=1.0.${{ github.run_number }}-${{ env.VERSION_SUFFIX }}
+        run: dotnet build -c Release /p:PackageVersion=1.0.${{ github.run_number }}
 
       - name: 🛠️ Pack
-        run: dotnet pack -c Release /p:PackageVersion=1.0.${{ github.run_number }}-${{ env.VERSION_SUFFIX }} --output ./nupkgs
+        run: dotnet pack -c Release /p:PackageVersion=1.0.${{ github.run_number }} --output ./nupkgs
 
       - name: 🚀 Push to NuGet
         run: dotnet nuget push ./nupkgs/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate

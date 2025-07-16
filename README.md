@@ -37,7 +37,16 @@ Or search for `ComboBox` in NuGet Package Manager.
    ```sh
    git clone https://github.com/pennan88/ComboBox.git
    ```
-2. Add the project reference to your Blazor solution.
+
+### Add the project reference to your Blazor solution.
+
+```csharp
+@using ComboBox.Components
+```
+
+```html
+<script src="_content/Combobox/combobox.js"></script>
+```
 
 ## 🛠️ Usage
 
@@ -99,8 +108,12 @@ Or search for `ComboBox` in NuGet Package Manager.
 - Uses semantic HTML and CSS classes.
 - Override or extend styles with your own CSS:
   ```css
-  .combobox-dropdown { background: #f9f9f9; }
-  .combobox-item.selected { font-weight: bold; }
+  .combobox-dropdown {
+    background: #f9f9f9;
+  }
+  .combobox-item.selected {
+    font-weight: bold;
+  }
   ```
 
 ## 📋 Features List
