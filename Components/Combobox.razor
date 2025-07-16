@@ -21,8 +21,8 @@
             <span class="combo-placeholder">@Placeholder</span>
         }
 
-        <span class="combo-chevron">
-            @(IsOpen ? "▼" : "▲")
+        <span class="combo-chevron adornment">
+            @(IsOpen ? ChevronDown : ChevronUp)
         </span>
     </button>
 
@@ -30,51 +30,61 @@
     {
         <div class="combo-dropdown" @onmousedown:preventDefault>
             <div class="combo-search-input-container">
-                <span class="combo-search-icon">🔍</span>
+                <span class="combo-search-icon adornment">@Search</span>
                 <input @ref="_elementReference" class="combo-search-input" placeholder="Search..." value="@SearchText"
-                    @oninput="OnInput" @onkeydown="HandleKeyDown" />
+                       @oninput="OnInput" @onkeydown="HandleKeyDown"/>
             </div>
 
-            <hr class="combo-divider" />
+            <div class="combo-content-container">
 
-            <Virtualize @ref="_virtualizeRef" ItemsProvider="LoadItems" ItemSize="40">
-                <ItemContent Context="item">
-                    <div class="combo-item @(IsHighlighted(item) ? "highlighted" : "")"
-                        @onclick="@(() => ItemClicked(item))">
-                        <div class="combo-item-content">
-                            @if (ItemTemplate != null)
-                            {
-                                @ItemTemplate(item)
-                            }
-                            else
-                            {
-                                <span>@GetItemString(item)</span>
-                            }
+                <Virtualize @ref="_virtualizeRef" ItemsProvider="LoadItems" ItemSize="40">
+                    <ItemContent Context="item">
+                        <div class="combo-item @(IsHighlighted(item) ? "highlighted" : "")"
+                             @onclick="@(() => ItemClicked(item))">
+                            <div class="combo-item-content">
+                                @if (ShowCheckmarkInList && IsSelectedItem(item))
+                                {
+                                    <span class="combo-checkmark adornment">@CheckMark</span>
+                                }
+                                else
+                                {
+                                    <span class="combo-checkmark adornment" style="opacity: 0">@CheckMark</span>
+                                }
+                                @if (ItemTemplate != null)
+                                {
+                                    @ItemTemplate(item)
+                                }
+                                else
+                                {
+                                    <span>@GetItemString(item)</span>
+                                }
+                            </div>
                         </div>
+                    </ItemContent>
+                </Virtualize>
+
+                @if (ShowNoResults)
+                {
+                    <div class="combo-no-results">
+                        @if (NoResultsTemplate == null)
+                        {
+                            <p>No results</p>
+                        }
+                        else
+                        {
+                            @NoResultsTemplate
+                        }
                     </div>
-                </ItemContent>
-            </Virtualize>
+                }
 
-            @if (ShowNoResults)
-            {
-                <div class="combo-no-results">
-                    @if (NoResultsTemplate == null)
-                    {
-                        <p>No results</p>
-                    }
-                    else
-                    {
-                        @NoResultsTemplate
-                    }
-                </div>
-            }
+                @if (IsLoading)
+                {
+                    <div class="combo-loading">
+                        Loading...
+                    </div>
+                }
 
-            @if (IsLoading)
-            {
-                <div class="combo-loading">
-                    Loadin...
-                </div>
-            }
+            </div>
         </div>
     }
 </div>
@@ -88,9 +98,8 @@
     private DotNetObjectReference<Combobox<TItem>>? _dotNetObjectReference;
     private CancellationTokenSource? _debounceCts;
 
-    [Parameter] public string Placeholder { get; set; } = "Välj...";
-    [Parameter]
-    public Func<TItem, string>? ToStringFunc { get; set; }
+    [Parameter] public string Placeholder { get; set; } = "";
+    [Parameter] public Func<TItem, string>? ToStringFunc { get; set; }
 
 
     private bool IsSelectedItem(TItem item)
@@ -112,7 +121,7 @@
     [Parameter]
     public List<TItem>? StaticData { get; set; }
 
-    [Parameter] public RenderFragment<TItem> ItemTemplate { get; set; } = default!;
+    [Parameter] public RenderFragment<TItem>? ItemTemplate { get; set; }
 
     [Parameter] public RenderFragment<TItem>? SelectedTemplate { get; set; }
 
@@ -140,9 +149,9 @@
             // Register outside click
             _dotNetObjectReference = DotNetObjectReference.Create(this);
             _outsideClickListener = await Js.InvokeAsync<IJSObjectReference>(
-            "comboBoxRegisterOutsideClick",
-            _rootRef,
-            _dotNetObjectReference
+                "comboBoxRegisterOutsideClick",
+                _rootRef,
+                _dotNetObjectReference
             );
         }
         else
@@ -150,6 +159,7 @@
             await RemoveOutsideClickListener();
         }
     }
+
     private string GetItemString(TItem item)
     {
         if (ToStringFunc != null)
@@ -205,13 +215,13 @@
         {
             // Client-side mode
             var filtered = StaticData
-            .Where(item => ItemMatches(item, SearchText))
-            .ToList();
+                .Where(item => ItemMatches(item, SearchText))
+                .ToList();
 
             var page = filtered
-            .Skip(request.StartIndex)
-            .Take(request.Count)
-            .ToList();
+                .Skip(request.StartIndex)
+                .Take(request.Count)
+                .ToList();
 
             _visibleItems = page;
 
@@ -242,11 +252,13 @@
         {
             _highlightedIndex = Math.Min(_highlightedIndex + 1, _visibleItems.Count - 1);
             StateHasChanged();
+            await ScrollHighlightedItemIntoView();
         }
         else if (e.Key == "ArrowUp")
         {
             _highlightedIndex = Math.Max(_highlightedIndex - 1, 0);
             StateHasChanged();
+            await ScrollHighlightedItemIntoView();
         }
         else if (e.Key == "Enter")
         {
@@ -258,6 +270,14 @@
         else if (e.Key == "Escape")
         {
             IsOpen = false;
+        }
+    }
+
+    private async Task ScrollHighlightedItemIntoView()
+    {
+        if (Js != null && _rootRef.HasValue)
+        {
+            await Js.InvokeVoidAsync("comboBoxScrollToHighlighted", _rootRef);
         }
     }
 
@@ -282,8 +302,7 @@
         _dotNetObjectReference = null;
     }
 
-    [JSInvokable]
-    public async Task CloseDropdown()
+    [JSInvokable] public async Task CloseDropdown()
     {
         IsOpen = false;
         await RemoveOutsideClickListener();
@@ -306,4 +325,26 @@
             await asyncVirtualize.DisposeAsync();
         }
     }
+
+    private RenderFragment CheckMark => @<svg xmlns="http://www.w3.org/2000/svg" height="16px" width="16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                              stroke-linecap="round" stroke-linejoin="round"
+                                              class="lucide lucide-check-icon lucide-check">
+        <path d="M20 6 9 17l-5-5"/>
+    </svg>;
+
+    private RenderFragment ChevronDown => @<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                                stroke-linejoin="round" class="lucide lucide-chevron-down-icon lucide-chevron-down">
+        <path d="m6 9 6 6 6-6"/>
+    </svg>;
+
+    private RenderFragment ChevronUp => @<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                              stroke-linejoin="round" class="lucide lucide-chevron-up-icon lucide-chevron-up">
+        <path d="m18 15-6-6-6 6"/>
+    </svg>;
+
+    private RenderFragment Search => @<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                           stroke-linejoin="round" class="lucide lucide-search-icon lucide-search">
+        <path d="m21 21-4.34-4.34"/>
+        <circle cx="11" cy="11" r="8"/>
+    </svg>;
 }

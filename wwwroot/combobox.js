@@ -10,3 +10,13 @@ window.comboBoxRegisterOutsideClick = (element, dotNetHelper) => {
     dispose: () => document.removeEventListener("click", handler),
   };
 };
+
+
+window.comboBoxScrollToHighlighted = (root) => {
+  if (!root) return;
+
+  const highlighted = root.querySelector('.combo-item.highlighted');
+  if (highlighted) {
+    highlighted.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+};
