@@ -801,7 +801,7 @@
     "version": "1.3.0",
     "restore": {
       "projectUniqueName": "C:\\Users\\AlexanderFagrelius\\source\\combobox\\ComboBox\\ComboBox.csproj",
-      "projectName": "VirtualizedCombobox",
+      "projectName": "ComboBox",
       "projectPath": "C:\\Users\\AlexanderFagrelius\\source\\combobox\\ComboBox\\ComboBox.csproj",
       "packagesPath": "C:\\Users\\AlexanderFagrelius\\.nuget\\packages\\",
       "outputPath": "C:\\Users\\AlexanderFagrelius\\source\\combobox\\ComboBox\\obj\\",

@@ -12,9 +12,9 @@ using System.Reflection;
 
 [assembly: System.Reflection.AssemblyCompanyAttribute("Alexander Fagrelius")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
-[assembly: System.Reflection.AssemblyDescriptionAttribute("Reusable Blazor Virtualized Combobox Component with Search and Infinite Scroll")]
+[assembly: System.Reflection.AssemblyDescriptionAttribute("Reusable Blazor Virtualized ComboBox Component with Search and Infinite Scroll")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.3.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.3.0+06eb6ff51ddf4c1332568a005664c711398e9290")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.3.0+14a8141280006a6a86ea640dfb8a38223a63c86b")]
 [assembly: System.Reflection.AssemblyProductAttribute("ComboBox")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ComboBox")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.3.0.0")]
