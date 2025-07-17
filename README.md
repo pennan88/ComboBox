@@ -45,7 +45,8 @@ Or search for `ComboBox` in NuGet Package Manager.
 ```
 
 ```html
-<script src="_content/Combobox/combobox.js"></script>
+<link href="_content/ComboBox/combobox.css" rel="stylesheet" />
+<script src="_content/ComboBox/combobox.js"></script>
 ```
 
 ## 🛠️ Usage
