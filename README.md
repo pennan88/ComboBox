@@ -23,7 +23,7 @@ Create a modern dropdown input for Blazor apps that supports:
 
 ## 🚀 Installation
 
-### Via NuGet
+### Via [NuGet](https://www.nuget.org/packages/ComboBox/)
 
 ```sh
 dotnet add package ComboBox --version [latest]
@@ -91,10 +91,9 @@ Or search for `ComboBox` in NuGet Package Manager.
 ```razor
 <ComboBox TValue="User"
           Items="users">
+
   <ItemTemplate Context="Item">
-    <p>
-      @item.Name
-    </p>
+    <p>@item.Name</p>
   </ItemTemplate>
 
   <NoResultsTemplate>
@@ -121,10 +120,8 @@ Or search for `ComboBox` in NuGet Package Manager.
 - Searchable dropdown
 - Virtualized infinite scrolling
 - Static or server data sources
-- Infinite paging with load more
 - Customizable item and no-results templates
 - Selected-item checkmark
-- Auto-close on outside click
 
 ## 🏷️ License
 
