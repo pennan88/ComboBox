@@ -5,15 +5,15 @@
 
 <div class="combo-container" @ref="_rootRef">
     <button class="combo-trigger" @onclick="ToggleDropdown">
-        @if (SelectedItem is not null)
+        @if (Value is not null)
         {
             if (SelectedTemplate is not null)
             {
-                @SelectedTemplate(SelectedItem)
+                @SelectedTemplate(Value)
             }
             else
             {
-                <span>@GetItemString(SelectedItem)</span>
+                <span>@GetItemString(Value)</span>
             }
         }
         else
@@ -92,26 +92,13 @@
 
 
 @code {
-    private ElementReference? _rootRef;
-    private bool IsLoading { get; set; }
-    private IJSObjectReference? _outsideClickListener;
-    private DotNetObjectReference<Combobox<TItem>>? _dotNetObjectReference;
-    private CancellationTokenSource? _debounceCts;
-
+    [Parameter] public TItem? Value {get; set;}
+    [Parameter] public EventCallback<TItem?> ValueChanged {get; set;}
+    
     [Parameter] public string Placeholder { get; set; } = "";
     [Parameter] public Func<TItem, string>? ToStringFunc { get; set; }
-
-
-    private bool IsSelectedItem(TItem item)
-    {
-        return SelectedItem is not null && SelectedItem.Equals(item);
-    }
-
     [Parameter] public bool ShowCheckmarkInList { get; set; } = true;
-
     [Parameter] public RenderFragment? NoResultsTemplate { get; set; }
-
-    private bool ShowNoResults => _visibleItems.Count == 0 && !string.IsNullOrWhiteSpace(SearchText);
 
     /// For remote, paged API
     [Parameter]
@@ -125,16 +112,25 @@
 
     [Parameter] public RenderFragment<TItem>? SelectedTemplate { get; set; }
 
-    [Parameter] public EventCallback<TItem> OnSelected { get; set; }
 
+    private ElementReference? _rootRef;
+    private bool IsLoading { get; set; }
+    private IJSObjectReference? _outsideClickListener;
+    private DotNetObjectReference<Combobox<TItem>>? _dotNetObjectReference;
+    private CancellationTokenSource? _debounceCts;
     private string SearchText { get; set; } = "";
     private Virtualize<TItem>? _virtualizeRef;
     private bool IsOpen { get; set; }
-    private TItem? SelectedItem { get; set; }
-
     private ElementReference _elementReference;
     private List<TItem> _visibleItems = [];
     private int _highlightedIndex;
+
+    private bool ShowNoResults => _visibleItems.Count == 0 && !string.IsNullOrWhiteSpace(SearchText);
+ 
+    private bool IsSelectedItem(TItem item)
+    {
+        return Value is not null && Value.Equals(item);
+    }
 
     private async Task ToggleDropdown()
     {
@@ -283,9 +279,9 @@
 
     private async Task ItemClicked(TItem item)
     {
-        SelectedItem = item;
+        Value = item;
         IsOpen = false;
-        await OnSelected.InvokeAsync(item);
+        await ValueChanged.InvokeAsync(item);
     }
 
 
