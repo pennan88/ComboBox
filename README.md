@@ -54,10 +54,10 @@ Or search for `ComboBox` in NuGet Package Manager.
 ### Static List Example
 
 ```razor
-<ComboBox TValue="string"
-          Items="myList"
-          @bind-Value="selected"
-          Placeholder="Choose an item..." />
+<Combobox TItem="string"
+              StaticData="myList"
+              @bind-Value="selected"
+              Placeholder="Choose an item..." />
 ```
 
 ```csharp
@@ -70,37 +70,45 @@ Or search for `ComboBox` in NuGet Package Manager.
 ### API-Driven Example
 
 ```razor
-<ComboBox TValue="Product"
-          ItemsProvider="SearchProductsAsync"
-          ItemTemplate="@(product => @<div>@product.Name (@product.Id)</div>)"
-          @bind-Value="selectedProduct" />
+  <div style="width: 300px">
+    <Combobox TItem="User" DataProvider="@(Search)" Label="Hello world"
+         @bind-Value="SelectedUser" Disabled="@disabled" Placeholder="Pick a fruit" ItemSize="32.2f" >
+        <SelectedTemplate Context="selected">
+            <div style="display: flex; flex-direction: column;">
+                <p><strong>@selected.Name</strong> @selected.Last</p>
+                <p>@selected.Number</p>
+            </div>
+        </SelectedTemplate>
+        <ItemTemplate Context="item" >
+            <div style="display: flex; gap: 4px;">
+                <p>@item.Name</p>
+                <p>@item.Last</p>
+            </div>
+        </ItemTemplate>
+        <NoResultsTemplate>
+            <p>Sadge :/</p>
+        </NoResultsTemplate>
+    </Combobox>
+</div>
+
 ```
 
 ```csharp
-@code {
-    Product selectedProduct;
+private List<User> Users = [];
 
-    async Task<IEnumerable<Product>> SearchProductsAsync(string searchTerm, int skip, int take)
-    {
-        // Fetch from API or database
-    }
+async ValueTask<ItemsProviderResult<User>> Search(ComboState state, CancellationToken token)
+{
+   var allItems = Users;
+   await Task.Delay(1000, token);
+   
+   var filtered = string.IsNullOrWhiteSpace(state.Search)
+   ? allItems
+   : allItems.Where(x => x.Name!.Contains(state.Search, StringComparison.OrdinalIgnoreCase)).ToList();
+   
+   var page = filtered.Skip(state.Skip).Take(state.Take).ToList();
+   
+   return new ItemsProviderResult<User>(page, filtered.Count);
 }
-```
-
-### Customizing Templates
-
-```razor
-<ComboBox TValue="User"
-          Items="users">
-
-  <ItemTemplate Context="Item">
-    <p>@item.Name</p>
-  </ItemTemplate>
-
-  <NoResultsTemplate>
-    <p>Custom no result</p>
-  </NoResultsTemplate>
-</ComboBox>
 ```
 
 ## 🎨 Styling Guidance
