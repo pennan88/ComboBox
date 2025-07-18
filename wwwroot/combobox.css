@@ -1,17 +1,18 @@
 :root {
     --background: #fff;
     --border-primary: #d9d9d9;
-    --border-radius: calc(var(--base-size));
+    --border-radius: var(--base-size);
     --border-radius-md: calc(var(--base-size) + 2px);
     --border-radius-lg: calc(var(--base-size) + 4px);
     --primary-600: #009ca6;
     --primary-50: #f2f8f7;
 
-    --base-size: 4px;
+    --base-size: 0.125rem;
 }
 
 .combo-container {
     position: relative;
+    box-sizing: border-box;
     height: 100%;
     font-family: inherit;
     font-size: inherit;
@@ -65,6 +66,7 @@
 /* Search input inside dropdown */
 .combo-search-input-container {
     padding: 12px;
+    position: relative;
     display: flex;
     gap: 8px;
     flex-direction: row;
@@ -86,7 +88,8 @@
 /* Item styling */
 .combo-item {
     font-family: Lato, sans-serif;
-    padding: 6px 8px;
+    display: flex;
+    width: 100%;
     cursor: pointer;
     border-radius: var(--border-radius);
 }
@@ -106,6 +109,8 @@
 .combo-item-content {
     display: flex;
     gap: 8px;
+
+    padding: 6px 8px;
     align-items: center;
 }
 
@@ -141,4 +146,37 @@
     margin-bottom: 4px;
     display: block;
     font-size: 14px;
+}
+
+
+.progress {
+    width: 100px;
+    height: 16px;
+    margin: 0 auto;
+    -webkit-mask-image: radial-gradient(circle closest-side, black 94%, transparent 100%);
+    -webkit-mask-size: 20% 100%;
+    -webkit-mask-repeat: repeat-x;
+    background: linear-gradient(var(--primary-600) 0 0) left/0 100% no-repeat var(--border-primary);
+    animation: progress-c3ir73 1s infinite steps(6);
+
+}
+
+@keyframes progress-anim {
+    0% {
+        background-position: -150% 0,-150% 0;
+    }
+
+    66% {
+        background-position: 250% 0,-150% 0;
+    }
+
+    100% {
+        background-position: 250% 0, 250% 0;
+    }
+}
+
+@keyframes progress-c3ir73 {
+    100% {
+        background-size: 120% 100%;
+    }
 }

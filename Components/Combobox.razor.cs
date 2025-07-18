@@ -13,21 +13,103 @@ namespace ComboBox.Components;
 public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 {
     [Inject] private IJSRuntime? Js { get; set; }
-    [Parameter] public TItem? Value { get; set; }
-    [Parameter] public EventCallback<TItem?> ValueChanged { get; set; }
-    [Parameter] public string Placeholder { get; set; } = "";
-    [Parameter] public Func<TItem, string>? ToStringFunc { get; set; }
-    [Parameter] public bool ShowCheckmarkInList { get; set; } = true;
-    [Parameter] public RenderFragment? NoResultsTemplate { get; set; }
-    [Parameter] public Func<string?, int, int, ValueTask<ItemsProviderResult<TItem>>>? DataProvider { get; set; }
-    [Parameter] public List<TItem>? StaticData { get; set; }
-    [Parameter] public RenderFragment<TItem>? ItemTemplate { get; set; }
-    [Parameter] public RenderFragment<TItem>? SelectedTemplate { get; set; }
-    [Parameter] public bool Disabled { get; set; }
-    [Parameter] public string? Class { get; set; }
-    [Parameter] public string? InputClass { get; set; }
-    [Parameter] public string? DropdownClass { get; set; }
-    [Parameter] public string? Label { get; set; }
+
+    /// <summary>
+    /// The current selected value of the component.
+    /// </summary>
+    [Parameter]
+    public TItem? Value { get; set; }
+
+    /// <summary>
+    /// Callback invoked when the selected value changes.
+    /// </summary>
+    [Parameter]
+    public EventCallback<TItem?> ValueChanged { get; set; }
+
+    /// <summary>
+    /// Placeholder text displayed when no value is selected.
+    /// </summary>
+    [Parameter]
+    public string Placeholder { get; set; } = "";
+
+    /// <summary>
+    /// Function to convert an item of type <typeparamref name="TItem"/> to its string representation.
+    /// </summary>
+    [Parameter]
+    public Func<TItem, string>? ToStringFunc { get; set; }
+
+    /// <summary>
+    /// Determines whether a checkmark is shown next to selected items in the list.
+    /// </summary>
+    [Parameter]
+    public bool ShowCheckmarkInList { get; set; } = true;
+
+    /// <summary>
+    /// Optional provider for asynchronous data loading, taking a single <see cref="ComboState"/> object and a <see cref="CancellationToken"/>.
+    /// </summary>
+    [Parameter]
+    public Func<ComboState, CancellationToken, ValueTask<ItemsProviderResult<TItem>>>? DataProvider { get; set; }
+
+    /// <summary>
+    /// A static list of items to display when using preloaded data instead of a data provider.
+    /// </summary>
+    [Parameter]
+    public List<TItem>? StaticData { get; set; }
+
+    /// <summary>
+    /// Template for rendering each item in the dropdown list.
+    /// </summary>
+    [Parameter]
+    public RenderFragment<TItem>? ItemTemplate { get; set; }
+
+    /// <summary>
+    /// Template for rendering the selected item when the dropdown is closed.
+    /// </summary>
+    [Parameter]
+    public RenderFragment<TItem>? SelectedTemplate { get; set; }
+
+    /// <summary>
+    /// Template displayed when no matching items are found.
+    /// </summary>
+    [Parameter]
+    public RenderFragment? NoResultsTemplate { get; set; }
+
+    /// <summary>
+    /// If set to <c>true</c>, the component is disabled and user interaction is prevented.
+    /// </summary>
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>
+    /// CSS class applied to the root element of the component.
+    /// </summary>
+    [Parameter]
+    public string? Class { get; set; }
+
+    /// <summary>
+    /// CSS class applied to the input element.
+    /// </summary>
+    [Parameter]
+    public string? InputClass { get; set; }
+
+    /// <summary>
+    /// CSS class applied to the dropdown list container.
+    /// </summary>
+    [Parameter]
+    public string? DropdownClass { get; set; }
+
+    /// <summary>
+    /// Label text displayed for the component, if applicable.
+    /// </summary>
+    [Parameter]
+    public string? Label { get; set; }
+
+    /// <summary>
+    /// The fixed pixel height of each item in the virtualized list.
+    /// </summary>
+    [Parameter]
+    public float ItemSize { get; set; } = 50f;
+
 
     private string Classes => new ClassBuilder()
         .AddClass("combo-container")
@@ -129,31 +211,33 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         }
     }
 
-    private async ValueTask<ItemsProviderResult<TItem>> LoadItems(ItemsProviderRequest request)
+
+    private async ValueTask<ItemsProviderResult<TItem>> LoadItems(
+        ItemsProviderRequest request)
     {
         if (DataProvider is not null)
         {
             IsLoading = true;
             StateHasChanged();
-            // Server-side mode
-            var result = await DataProvider(SearchText, request.StartIndex, request.Count);
+
+            // Invoke the provider and honor cancellation
+            var result = await DataProvider(new ComboState(SearchText, request.Count, request.StartIndex), request.CancellationToken);
+
             _visibleItems = result.Items.ToList();
+
             IsLoading = false;
             StateHasChanged();
+
             return result;
         }
 
         if (StaticData is not null)
         {
-            
-            // Client-side mode
-            var filtered = StaticData;
-            if (!string.IsNullOrEmpty(SearchText))
-            {
-                filtered = filtered
-                    .Where(item => ItemMatches(item, SearchText))
-                    .ToList();
-            }
+            // Client‐side mode: you could check cancellationToken.IsCancellationRequested here if you like,
+            // but for an in-memory filter it’s usually unnecessary.
+            var filtered = string.IsNullOrEmpty(SearchText)
+                ? StaticData
+                : StaticData.Where(item => ItemMatches(item, SearchText)).ToList();
 
             var page = filtered
                 .Skip(request.StartIndex)
@@ -161,13 +245,13 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
                 .ToList();
 
             _visibleItems = page;
-
             return new ItemsProviderResult<TItem>(page, filtered.Count);
         }
 
         // No data
-        return new ItemsProviderResult<TItem>(new List<TItem>(), 0);
+        return new ItemsProviderResult<TItem>(Array.Empty<TItem>(), 0);
     }
+
 
     private bool ItemMatches(TItem item, string search)
     {
