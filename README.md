@@ -49,6 +49,7 @@ Or search for `ComboBox` in NuGet Package Manager.
 <script src="_content/ComboBox/combobox.js"></script>
 ```
 
+
 ## 🛠️ Usage
 
 ### Static List Example
@@ -123,6 +124,33 @@ async ValueTask<ItemsProviderResult<User>> Search(ComboState state, Cancellation
     font-weight: bold;
   }
   ```
+
+## 📚 API Documentation
+
+### `<ComboBox TValue="TItem">` Parameters
+
+| Parameter                | Type                                               | Description                                                                                                              |
+|--------------------------|----------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
+| `Value`                  | `TItem?`                                           | The currently selected value.                                                                                            |
+| `ValueChanged`           | `EventCallback<TItem?>`                            | Callback invoked when the selected value changes.                                                                        |
+| `Placeholder`            | `string`                                           | Placeholder text displayed when no value is selected.                                                                    |
+| `ToStringFunc`           | `Func<TItem, string>?`                             | Converts an item to its string representation for display.                                                               |
+| `ShowCheckmarkInList`    | `bool` (default: `true`)                           | Whether to show a checkmark next to selected items.                                                                      |
+| `DataProvider`           | `Func<ComboState, CancellationToken, ValueTask<ItemsProviderResult<TItem>>>?` | Async provider for paged/filtered data (for large or remote lists).                                                      |
+| `StaticData`             | `List<TItem>?`                                     | Static list of items to display (for simple usage).                                                                      |
+| `ItemTemplate`           | `RenderFragment<TItem>?`                           | Template for rendering each item in the dropdown list.                                                                   |
+| `SelectedTemplate`       | `RenderFragment<TItem>?`                           | Template for rendering the selected item when the dropdown is closed.                                                    |
+| `NoResultsTemplate`      | `RenderFragment?`                                  | Template displayed when no matching items are found.                                                                     |
+| `Disabled`               | `bool`                                             | Whether the component is disabled.                                                                                       |
+| `Class`                  | `string?`                                          | CSS class applied to the root element.                                                                                   |
+| `InputClass`             | `string?`                                          | CSS class applied to the input element.                                                                                  |
+| `DropdownClass`          | `string?`                                          | CSS class applied to the dropdown container.                                                                             |
+| `Label`                  | `string?`                                          | Optional label text for the component.                                                                                   |
+| `ItemSize`               | `float` (default: `50f`)                           | Fixed pixel height of each item for virtualization.                                                                      |
+
+
+
+
 
 ## 📋 Features List
 
