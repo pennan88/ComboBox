@@ -3,7 +3,7 @@
 
 <div class="@Classes" @ref="_rootRef">
     <label class="combo-label">@Label</label>
-    <button class="@InputClasses" @onclick="ToggleDropdown">
+    <button type="button" class="@InputClasses" @onclick="ToggleDropdown">
         @if (Value is not null)
         {
             if (SelectedTemplate is not null)
@@ -21,7 +21,7 @@
         }
 
         <span class="combo-chevron combo-adornment">
-            @(IsOpen ? ChevronDown : ChevronUp)
+            @(IsOpen? ChevronDown : ChevronUp)
         </span>
     </button>
 
@@ -30,29 +30,27 @@
         <div class="@DropdownClasses" @onmousedown:preventDefault>
             <div class="combo-search-input-container">
                 <span class="combo-search-icon combo-adornment">@Search</span>
-                <input @ref="_elementReference" class="combo-search-input" placeholder="Search..." value="@SearchText" @oninput="OnInput" @onkeydown="HandleKeyDown"/>
+                <input @ref="_elementReference" class="combo-search-input" placeholder="Search..." value="@SearchText"
+                    @oninput="OnInput" @onkeydown="HandleKeyDown" />
 
             </div>
 
             <div class="combo-content-container">
-                <Virtualize
-                    @ref="_virtualizeRef"
-                    ItemsProvider="LoadItems"
-                    ItemSize="@ItemSize">
+                <Virtualize @ref="_virtualizeRef" ItemsProvider="LoadItems" ItemSize="@ItemSize">
 
                     <!-- Placeholder displayed while each slot is loading -->
                     <Placeholder>
                         <div class="combo-item" style="height:@(ItemSize.ToString("F1", CultureInfo.InvariantCulture))px">
                             <div class="combo-item-content">
                                 <span class="combo-checkmark combo-adornment" style="opacity: 0">@CheckMark</span>
-                                <span>Loading...</span></div>
+                                <span>Loading...</span>
+                            </div>
                         </div>
                     </Placeholder>
 
                     <!-- Real items once loaded -->
                     <ItemContent Context="item">
-                        <div
-                            style="height:@(ItemSize.ToString("F1", CultureInfo.InvariantCulture))px"
+                        <div style="height:@(ItemSize.ToString("F1", CultureInfo.InvariantCulture))px"
                             class="combo-item @(IsHighlighted(item) ? "highlighted" : "")"
                             @onclick="@(() => ItemClicked(item))">
                             <div class="combo-item-content">
@@ -103,27 +101,27 @@
 
 @code {
     private RenderFragment CheckMark => @<svg xmlns="http://www.w3.org/2000/svg" height="16px" width="16px"
-                                              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                              stroke-linejoin="round" class="lucide lucide-check-icon lucide-check">
-                                            <path d="M20 6 9 17l-5-5"/>
-                                        </svg>;
+        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round" class="lucide lucide-check-icon lucide-check">
+        <path d="M20 6 9 17l-5-5" />
+    </svg>;
 
     private RenderFragment ChevronDown => @<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
-                                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                                stroke-linejoin="round" class="lucide lucide-chevron-down-icon lucide-chevron-down">
-                                              <path d="m6 9 6 6 6-6"/>
-                                          </svg>;
+        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round" class="lucide lucide-chevron-down-icon lucide-chevron-down">
+        <path d="m6 9 6 6 6-6" />
+    </svg>;
 
     private RenderFragment ChevronUp => @<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                                              class="lucide lucide-chevron-up-icon lucide-chevron-up">
-                                            <path d="m18 15-6-6-6 6"/>
-                                        </svg>;
+        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+        class="lucide lucide-chevron-up-icon lucide-chevron-up">
+        <path d="m18 15-6-6-6 6" />
+    </svg>;
 
     private RenderFragment Search => @<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                                           fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                                           class="lucide lucide-search-icon lucide-search">
-                                         <path d="m21 21-4.34-4.34"/>
-                                         <circle cx="11" cy="11" r="8"/>
-                                     </svg>;
+        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+        class="lucide lucide-search-icon lucide-search">
+        <path d="m21 21-4.34-4.34" />
+        <circle cx="11" cy="11" r="8" />
+    </svg>;
 }
