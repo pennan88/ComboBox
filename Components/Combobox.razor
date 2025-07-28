@@ -2,7 +2,10 @@
 
 
 <div class="@Classes" @ref="_rootRef">
-    <label class="combo-label">@Label</label>
+    @if (!string.IsNullOrEmpty(Label))
+    {
+        <label class="combo-label">@Label</label>
+    }
     <button type="button" class="@InputClasses" @onclick="ToggleDropdown">
         @if (Value is not null)
         {
