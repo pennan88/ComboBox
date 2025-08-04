@@ -1,0 +1,56 @@
+﻿
+@inject IJSRuntime JsRuntime
+
+<div id="@Id" style="position: absolute; z-index: 9999; display: @(Show ? "block" : "none"); top:@_topPx; left:@_leftPx; width:@_widthPx">
+    @ChildContent
+</div>
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter, EditorRequired]
+    public string TriggerElementId { get; set; } = "";
+
+    [Parameter]
+    public bool Show { get; set; }
+
+    private string Id { get; } = $"portal-{Guid.NewGuid()}";
+
+    private string _topPx = "0px";
+    private string _leftPx = "0px";
+    private string _widthPx = "auto";
+    private bool _wasAppended;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Show)
+        {
+            // Wait for DOM layout to complete
+            await Task.Yield();
+            await Task.Delay(1);
+
+            var pos = await JsRuntime.InvokeAsync<Position>("portalHelper.getPosition", TriggerElementId);
+            _topPx = $"{pos.Top}px";
+            _leftPx = $"{pos.Left}px";
+            _widthPx = $"{pos.Width}px";
+
+            await JsRuntime.InvokeVoidAsync("portalHelper.appendToBody", Id);
+            _wasAppended = true;
+
+            StateHasChanged(); // trigger re-render with updated styles
+        }
+        else if (_wasAppended)
+        {
+            await JsRuntime.InvokeVoidAsync("portalHelper.removeFromBody", Id);
+            _wasAppended = false;
+        }
+    }
+
+    private class Position
+    {
+        public double Top { get; init; }
+        public double Left { get; init; }
+        public double Width { get; init; }
+    }
+}

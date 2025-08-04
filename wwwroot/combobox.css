@@ -50,22 +50,20 @@
 
 /* Dropdown panel */
 .combo-dropdown {
-  position: absolute;
-  box-shadow: 0 0 #0000, 0 0 #0000, 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-  top: 100%;
-  border-radius: var(--border-radius);
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  margin-top: 4px;
+  position: relative;
   z-index: 1000;
-  display: flex;
-  flex-direction: column;
-  overflow-x: hidden;
-  max-height: 320px;
+  box-shadow: 0 0 #0000, 0 0 #0000,
+              0 4px 6px -1px rgba(0, 0, 0, 0.1),
+              0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  border-radius: var(--border-radius);
   border: 1px solid var(--border-primary);
   background-color: var(--background);
+  max-height: 320px;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
 }
+
 
 /* Search input inside dropdown */
 .combo-search-input-container {

@@ -12,6 +12,7 @@ namespace ComboBox.Components;
 
 public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 {
+    private string _triggerId = $"combo-trigger-{Guid.NewGuid()}";
     [Inject] private IJSRuntime? Js { get; set; }
 
     /// <summary>
@@ -217,6 +218,7 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     {
         if (DataProvider is not null)
         {
+            //Server-side:
             IsLoading = true;
             StateHasChanged();
 
@@ -233,8 +235,7 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
         if (StaticData is not null)
         {
-            // Client‐side mode: you could check cancellationToken.IsCancellationRequested here if you like,
-            // but for an in-memory filter it’s usually unnecessary.
+            // Client‐side:
             var filtered = string.IsNullOrEmpty(SearchText)
                 ? StaticData
                 : StaticData.Where(item => ItemMatches(item, SearchText)).ToList();
@@ -341,7 +342,7 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         _dotNetObjectReference = null;
         _debounceCts = null;
         _outsideClickListener = null;
-        _virtualizeRef = null; // You don’t need to dispose Virtualize component manually.
+        _virtualizeRef = null;
 
         return;
 
