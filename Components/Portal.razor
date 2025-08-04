@@ -31,9 +31,10 @@
             await Task.Delay(1);
 
             var pos = await JsRuntime.InvokeAsync<Position>("portalHelper.getPosition", TriggerElementId);
-            _topPx = $"{pos.Top}px";
-            _leftPx = $"{pos.Left}px";
-            _widthPx = $"{pos.Width}px";
+
+            _topPx = $"{pos.Top.ToString("F1", CultureInfo.InvariantCulture)}px";
+            _leftPx = $"{pos.Left.ToString("F1", CultureInfo.InvariantCulture)}px";
+            _widthPx = $"{pos.Width.ToString("F1", CultureInfo.InvariantCulture)}px";
 
             await JsRuntime.InvokeVoidAsync("portalHelper.appendToBody", Id);
             _wasAppended = true;
