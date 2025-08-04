@@ -37,6 +37,8 @@
 
 .combo-placeholder {
   opacity: 0.4;
+  line-height: 1;
+  font-size: 14px;
 }
 
 .combo-trigger:hover {

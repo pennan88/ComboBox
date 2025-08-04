@@ -1,9 +1,19 @@
 ﻿
 @inject IJSRuntime JsRuntime
 
-<div id="@Id" style="position: absolute; z-index: 9999; display: @(Show ? "block" : "none"); top:@_topPx; left:@_leftPx; width:@_widthPx">
-    @ChildContent
+<div id="@Id"
+     style="position: absolute;
+         z-index: 9999;
+         display: @(_wasAppended ? "block" : "none");
+     top:@_topPx;
+     left:@_leftPx;
+     width:@_widthPx">
+    @if (_wasAppended)
+    {
+        @ChildContent
+    }
 </div>
+
 
 @code {
     [Parameter]
