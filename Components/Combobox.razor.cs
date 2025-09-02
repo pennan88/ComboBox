@@ -110,6 +110,8 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     /// </summary>
     [Parameter]
     public float ItemSize { get; set; } = 50f;
+    
+    private string PortalId { get; } = $"portal-{Guid.NewGuid()}";
 
 
     private string Classes => new ClassBuilder()
@@ -336,27 +338,13 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         if (_outsideClickListener is not null)
             await _outsideClickListener.DisposeAsync();
 
-        await DisposeResourceAsync(_dotNetObjectReference);
-        await DisposeResourceAsync(_debounceCts);
-
         _dotNetObjectReference = null;
         _debounceCts = null;
         _outsideClickListener = null;
         _virtualizeRef = null;
-
-        return;
-
-        static async ValueTask DisposeResourceAsync(object? resource)
+        if (Js != null)
         {
-            switch (resource)
-            {
-                case IAsyncDisposable asyncDisposable:
-                    await asyncDisposable.DisposeAsync();
-                    break;
-                case IDisposable disposable:
-                    disposable.Dispose();
-                    break;
-            }
+            await Js.InvokeVoidAsync("portalHelper.removeFromBody", PortalId);
         }
     }
 }

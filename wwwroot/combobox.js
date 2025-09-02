@@ -37,7 +37,7 @@ window.portalHelper = {
         try {
             const el = document.getElementById(id);
             if (el && el.remove) {
-                el.remove(); // Safe and standard
+                el.remove(); 
             } else {
                 console.warn("removeFromBody: element not found or can't be removed", {el, id});
             }

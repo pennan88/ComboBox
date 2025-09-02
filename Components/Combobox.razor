@@ -31,7 +31,7 @@
 
     @if (IsOpen)
     {
-        <Portal Show="IsOpen" TriggerElementId="@_triggerId">
+        <Portal Show="IsOpen" TriggerElementId="@_triggerId" Id="@PortalId">
             <div class="@DropdownClasses" @onmousedown:preventDefault>
                 <div class="combo-search-input-container">
                     <span class="combo-search-icon combo-adornment">@Search</span>

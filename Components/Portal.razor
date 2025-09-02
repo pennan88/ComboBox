@@ -1,4 +1,4 @@
-﻿
+﻿@implements IDisposable
 @inject IJSRuntime JsRuntime
 
 <div id="@Id"
@@ -25,7 +25,8 @@
     [Parameter]
     public bool Show { get; set; }
 
-    private string Id { get; } = $"portal-{Guid.NewGuid()}";
+    [Parameter, EditorRequired]
+    public string Id { get; set; } = null!;
 
     private string _topPx = "0px";
     private string _leftPx = "0px";
@@ -36,18 +37,19 @@
     {
         if (Show)
         {
-            // Wait for DOM layout to complete
-            await Task.Yield();
             await Task.Delay(1);
 
-            var pos = await JsRuntime.InvokeAsync<Position>("portalHelper.getPosition", TriggerElementId);
+            var pos = await JsRuntime.InvokeAsync<Position?>("portalHelper.getPosition", TriggerElementId);
 
-            _topPx = $"{pos.Top.ToString("F1", CultureInfo.InvariantCulture)}px";
-            _leftPx = $"{pos.Left.ToString("F1", CultureInfo.InvariantCulture)}px";
-            _widthPx = $"{pos.Width.ToString("F1", CultureInfo.InvariantCulture)}px";
+            if (pos != null)
+            {
+                _topPx = $"{pos.Top.ToString("F1", CultureInfo.InvariantCulture)}px";
+                _leftPx = $"{pos.Left.ToString("F1", CultureInfo.InvariantCulture)}px";
+                _widthPx = $"{pos.Width.ToString("F1", CultureInfo.InvariantCulture)}px";
 
-            await JsRuntime.InvokeVoidAsync("portalHelper.appendToBody", Id);
-            _wasAppended = true;
+                await JsRuntime.InvokeVoidAsync("portalHelper.appendToBody", Id);
+                _wasAppended = true;
+            }
 
             StateHasChanged(); // trigger re-render with updated styles
         }
@@ -63,5 +65,10 @@
         public double Top { get; init; }
         public double Left { get; init; }
         public double Width { get; init; }
+    }
+
+    public void Dispose()
+    {
+        // TODO release managed resources here
     }
 }
