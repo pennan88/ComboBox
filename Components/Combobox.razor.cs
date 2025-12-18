@@ -26,6 +26,9 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     /// </summary>
     [Parameter]
     public EventCallback<TItem?> ValueChanged { get; set; }
+    
+    [Parameter]
+    public EventCallback<string?> AddOptionChanged { get; set; }
 
     /// <summary>
     /// Placeholder text displayed when no value is selected.
@@ -74,6 +77,9 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     /// </summary>
     [Parameter]
     public RenderFragment? NoResultsTemplate { get; set; }
+    
+    [Parameter]
+    public bool ShowAddOption { get; set; } = false;
 
     /// <summary>
     /// If set to <c>true</c>, the component is disabled and user interaction is prevented.
@@ -310,6 +316,11 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         Value = item;
         IsOpen = false;
         await ValueChanged.InvokeAsync(item);
+    }
+
+    private async Task AddClicked(string newItem)
+    {
+        await AddOptionChanged.InvokeAsync(newItem);
     }
 
     [JSInvokable] public async Task CloseDropdown()
