@@ -1,32 +1,57 @@
-﻿@typeparam TItem
+@typeparam TItem
 
 
 <div class="@Classes" @ref="_rootRef">
     @if (!string.IsNullOrEmpty(Label))
     {
-        <label class="combo-label">@Label</label>
+        <label class="combo-label" for="@_triggerId">@Label</label>
     }
 
-    <button id="@_triggerId" type="button" class="@InputClasses" @onclick="ToggleDropdown">
+    <button id="@_triggerId"
+            @ref="_triggerRef"
+            type="button"
+            class="@InputClasses"
+            role="combobox"
+            aria-haspopup="listbox"
+            aria-expanded="@IsOpen"
+            aria-controls="@_listboxId"
+            aria-label="@TriggerAriaLabel"
+            @onclick="ToggleDropdown"
+            @onkeydown="HandleTriggerKeyDown">
         @if (Value is not null)
         {
             if (SelectedTemplate is not null)
             {
-                @SelectedTemplate(Value!)
+                <span class="combo-trigger-content combo-selected-template">
+                    @SelectedTemplate(Value!)
+                </span>
             }
             else
             {
-                <span>@GetItemString(Value)</span>
+                <span class="combo-trigger-content">
+                    <span class="combo-value">@GetItemString(Value)</span>
+                </span>
             }
         }
         else
         {
-            <span class="combo-placeholder">@Placeholder</span>
+            <span class="combo-trigger-content">
+                <span class="combo-placeholder">@Placeholder</span>
+            </span>
         }
 
-        <span class="combo-chevron combo-adornment">
-            @(IsOpen ? ChevronDown : ChevronUp)
-        </span>
+        @if (string.IsNullOrEmpty(AdornmentIcon))
+        {
+            <span class="combo-chevron combo-adornment" >
+                @(IsOpen ? ChevronUp : ChevronDown)
+            </span>
+        }
+        else
+        {
+            <span class="combo-chevron combo-adornment">
+                @RenderAdornmentIcon()
+            </span>
+        }
     </button>
 
     @if (IsOpen)
@@ -34,12 +59,21 @@
         <Portal Show="IsOpen" TriggerElementId="@_triggerId" Id="@PortalId">
             <div class="@DropdownClasses" @onmousedown:preventDefault>
                 <div class="combo-search-input-container">
-                        <span class="combo-search-icon combo-adornment">@Search</span>
-                        <input @ref="_elementReference" class="combo-search-input" placeholder="Search..." value="@SearchText" @oninput="OnInput" @onkeydown="HandleKeyDown"/>
-           
+                    <span class="combo-search-icon combo-adornment">@Search</span>
+                    <input @ref="_elementReference"
+                           class="combo-search-input"
+                           role="searchbox"
+                           aria-label="@SearchPlaceholder"
+                           aria-controls="@_listboxId"
+                           aria-activedescendant="@ActiveDescendantId"
+                           placeholder="@SearchPlaceholder"
+                           value="@SearchText"
+                           @oninput="OnInput"
+                           @onkeydown="HandleKeyDown"/>
+
                 </div>
 
-                <div class="combo-content-container" >
+                <div class="combo-content-container" id="@_listboxId" role="listbox">
                     @if (ShowAddOption && !string.IsNullOrEmpty(SearchText))
                     {
                         <button id="addButton" class="add-button" @onclick="@(() => AddClicked(SearchText))">
@@ -47,41 +81,37 @@
                                 @Plus
                             </div>
 
-                            <span class="text-muted">Lägg till</span>
+                            <span class="text-muted">@AddOptionText</span>
 
                             <span class="text-foreground">
                                 &quot;@SearchText&quot;
                             </span>
                         </button>
                     }
-                    <Virtualize @ref="_virtualizeRef" ItemsProvider="LoadItems" ItemSize="@ItemSize" >
+                    <Virtualize @ref="_virtualizeRef" ItemsProvider="LoadItems" ItemSize="@ItemSize">
                         <Placeholder>
-                            <div class="combo-item" style="height:@(ItemSize.ToString("F1", CultureInfo.InvariantCulture))px" >
-                                <div class="combo-item-content" >
-                                    <span class="combo-checkmark combo-adornment" style="opacity: 0" >@CheckMark</span>
+                            <div class="combo-item" style="height:@(ItemSize.ToString("F1", CultureInfo.InvariantCulture))px">
+                                <div class="combo-item-content">
+                                    <span class="combo-checkmark combo-adornment" style="opacity: 0">@CheckMark</span>
                                     <span>Loading...</span>
                                 </div>
                             </div>
                         </Placeholder>
-                        <ItemContent>
-                            @if (!string.IsNullOrEmpty(SearchText))
-                            {
-                                <div style="height:@(ItemSize.ToString("F1", CultureInfo.InvariantCulture))px" class="combo-item" >
-                                    <div>Add wee</div>
-                                </div>
-                            }
-                        </ItemContent>
-
-                        <ItemContent Context="item" >
-                            <div style="height:@(ItemSize.ToString("F1", CultureInfo.InvariantCulture))px" class="combo-item @(IsHighlighted(item) ? "highlighted" : "")" @onclick="@(() => ItemClicked(item))" >
-                                <div class="combo-item-content" >
+                        <ItemContent Context="item">
+                            <div id="@GetOptionId(item)"
+                                 role="option"
+                                 aria-selected="@IsSelectedItem(item)"
+                                 style="height:@(ItemSize.ToString("F1", CultureInfo.InvariantCulture))px"
+                                 class="combo-item @(IsHighlighted(item) ? "highlighted" : "")"
+                                 @onclick="@(() => ItemClicked(item))">
+                                <div class="combo-item-content">
                                     @if (ShowCheckmarkInList && IsSelectedItem(item))
                                     {
-                                        <span class="combo-checkmark combo-adornment" >@CheckMark</span>
+                                        <span class="combo-checkmark combo-adornment">@CheckMark</span>
                                     }
                                     else
                                     {
-                                        <span class="combo-checkmark combo-adornment" style="opacity: 0" >@CheckMark</span>
+                                        <span class="combo-checkmark combo-adornment" style="opacity: 0">@CheckMark</span>
                                     }
 
 
@@ -100,10 +130,10 @@
 
                     @if (ShowNoResults)
                     {
-                        <div class="combo-no-results" >
+                        <div class="combo-no-results">
                             @if (NoResultsTemplate == null)
                             {
-                                <p>No results</p>
+                                <p>@NoResultsText</p>
                             }
                             else
                             {
@@ -113,7 +143,17 @@
                     }
                     @if (IsLoading)
                     {
-                        <div class="progress" ></div>
+                        <div class="progress"></div>
+                    }
+                </div>
+                <div class="combo-sr-only" aria-live="polite">
+                    @if (IsLoading)
+                    {
+                        <span>Loading results</span>
+                    }
+                    else if (ShowNoResults)
+                    {
+                        <span>@NoResultsText</span>
                     }
                 </div>
             </div>
@@ -123,6 +163,41 @@
 
 
 @code {
+    private RenderFragment RenderAdornmentIcon() => builder =>
+    {
+        if (string.IsNullOrWhiteSpace(AdornmentIcon))
+            return;
+
+        builder.OpenElement(0, "svg");
+        builder.AddAttribute(1, "xmlns", "http://www.w3.org/2000/svg");
+        builder.AddAttribute(2, "width", "16");
+        builder.AddAttribute(3, "height", "16");
+        builder.AddAttribute(4, "viewBox", "0 0 24 24");
+
+        if (LooksLikeSvgMarkup(AdornmentIcon))
+        {
+            builder.AddMarkupContent(5, AdornmentIcon);
+        }
+        else
+        {
+            builder.OpenElement(6, "path");
+            builder.AddAttribute(7, "d", AdornmentIcon);
+            builder.AddAttribute(8, "fill", "currentColor");
+            builder.AddAttribute(9, "stroke", "none");
+            builder.CloseElement();
+        }
+
+        builder.CloseElement();
+    };
+
+    private static bool LooksLikeSvgMarkup(string? icon)
+    {
+        if (string.IsNullOrWhiteSpace(icon))
+            return false;
+
+        return icon.Contains('<') && icon.Contains('>');
+    }
+
     private RenderFragment CheckMark => @<svg xmlns="http://www.w3.org/2000/svg" height="16px" width="16px"
                                               viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                                               stroke-linejoin="round" class="lucide lucide-check-icon lucide-check">
@@ -147,10 +222,11 @@
                                          <path d="m21 21-4.34-4.34"/>
                                          <circle cx="11" cy="11" r="8"/>
                                      </svg>;
-    private RenderFragment Plus => @<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" 
-                                           fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" 
-                                           class="lucide lucide-plus-icon lucide-plus" >
-                                         <path d="M5 12h14" />
-                                         <path d="M12 5v14" />
-                                     </svg>;
+
+    private RenderFragment Plus => @<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                         fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                         class="lucide lucide-plus-icon lucide-plus">
+                                       <path d="M5 12h14"/>
+                                       <path d="M12 5v14"/>
+                                   </svg>;
 }

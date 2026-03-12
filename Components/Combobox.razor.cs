@@ -13,6 +13,7 @@ namespace ComboBox.Components;
 public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 {
     private string _triggerId = $"combo-trigger-{Guid.NewGuid()}";
+    private string _listboxId = $"combo-listbox-{Guid.NewGuid()}";
     [Inject] private IJSRuntime? Js { get; set; }
 
     /// <summary>
@@ -26,7 +27,7 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     /// </summary>
     [Parameter]
     public EventCallback<TItem?> ValueChanged { get; set; }
-    
+
     [Parameter]
     public EventCallback<string?> AddOptionChanged { get; set; }
 
@@ -41,6 +42,9 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     /// </summary>
     [Parameter]
     public Func<TItem, string>? ToStringFunc { get; set; }
+
+    [Parameter]
+    public IEqualityComparer<TItem>? EqualityComparer { get; set; }
 
     /// <summary>
     /// Determines whether a checkmark is shown next to selected items in the list.
@@ -81,6 +85,17 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     [Parameter]
     public bool ShowAddOption { get; set; } = false;
 
+    [Parameter]
+    public string AddOptionText { get; set; } = "Add";
+
+    [Parameter]
+    public string SearchPlaceholder { get; set; } = "Search...";
+
+    [Parameter]
+    public string NoResultsText { get; set; } = "No results";
+    [Parameter]
+    public string? AdornmentIcon { get; set; }
+
     /// <summary>
     /// If set to <c>true</c>, the component is disabled and user interaction is prevented.
     /// </summary>
@@ -116,6 +131,9 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     /// </summary>
     [Parameter]
     public float ItemSize { get; set; } = 50f;
+
+    [Parameter]
+    public int SearchDebounceMs { get; set; } = 300;
     
     private string PortalId { get; } = $"portal-{Guid.NewGuid()}";
 
@@ -136,7 +154,10 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         .AddClass(DropdownClass)
         .Build();
 
+    private string TriggerAriaLabel => string.IsNullOrWhiteSpace(Label) ? Placeholder : Label;
+
     private ElementReference? _rootRef;
+    private ElementReference _triggerRef;
     private bool IsLoading { get; set; }
     private IJSObjectReference? _outsideClickListener;
     private DotNetObjectReference<Combobox<TItem>>? _dotNetObjectReference;
@@ -147,40 +168,96 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     private ElementReference _elementReference;
     private List<TItem> _visibleItems = [];
     private int _highlightedIndex;
-    private bool ShowNoResults => _visibleItems.Count == 0 && !string.IsNullOrWhiteSpace(SearchText);
+    private int _totalItemCount = -1;
+    private bool _skipNextToggle;
+    private bool ShowNoResults => !IsLoading && _totalItemCount == 0;
+    private string? ActiveDescendantId =>
+        IsOpen && _highlightedIndex >= 0 && _highlightedIndex < _visibleItems.Count
+            ? GetOptionId(_visibleItems[_highlightedIndex])
+            : null;
+
+    protected override void OnParametersSet()
+    {
+        var hasDataProvider = DataProvider is not null;
+        var hasStaticData = StaticData is not null;
+
+        if (hasDataProvider && hasStaticData)
+            throw new InvalidOperationException("Set either DataProvider or StaticData, not both.");
+
+        if (!hasDataProvider && !hasStaticData)
+            throw new InvalidOperationException("Combobox requires either DataProvider or StaticData.");
+
+        if (SearchDebounceMs < 0)
+            throw new InvalidOperationException("SearchDebounceMs cannot be negative.");
+
+        if (ShowAddOption && !AddOptionChanged.HasDelegate)
+            throw new InvalidOperationException("ShowAddOption requires AddOptionChanged callback.");
+    }
 
     private bool IsSelectedItem(TItem item)
     {
-        return Value is not null && Value.Equals(item);
+        return Value is not null && ItemEquals(Value, item);
+    }
+
+    private bool ItemEquals(TItem? left, TItem? right)
+    {
+        if (left is null && right is null)
+            return true;
+
+        if (left is null || right is null)
+            return false;
+
+        return (EqualityComparer ?? System.Collections.Generic.EqualityComparer<TItem>.Default).Equals(left, right);
     }
 
     private async Task ToggleDropdown()
     {
         if (Disabled)
             return;
-        IsOpen = !IsOpen;
-        if (IsOpen)
-        {
-            SearchText = "";
-            _highlightedIndex = 0;
-            _ = Task.Delay(10).ContinueWith(_ => { InvokeAsync(() => _elementReference.FocusAsync()); });
-            _ = RefreshItems();
 
-            // Register outside click
-            _dotNetObjectReference = DotNetObjectReference.Create(this);
-            if (Js != null)
-            {
-                _outsideClickListener = await Js.InvokeAsync<IJSObjectReference>(
-                    "comboBoxRegisterOutsideClick",
-                    _rootRef,
-                    _dotNetObjectReference
-                );
-            }
-        }
-        else
+        if (_skipNextToggle)
         {
-            await RemoveOutsideClickListener();
+            _skipNextToggle = false;
+            return;
         }
+
+        if (IsOpen)
+            await CloseDropdownAsync(true);
+        else
+            await OpenDropdownAsync();
+    }
+
+    private async Task OpenDropdownAsync()
+    {
+        IsOpen = true;
+        SearchText = "";
+        _totalItemCount = -1;
+        _highlightedIndex = 0;
+        _ = Task.Delay(10).ContinueWith(_ => { InvokeAsync(() => _elementReference.FocusAsync()); });
+        _ = RefreshItems();
+
+        _dotNetObjectReference = DotNetObjectReference.Create(this);
+        if (Js != null)
+        {
+            _outsideClickListener = await Js.InvokeAsync<IJSObjectReference>(
+                "comboBoxRegisterOutsideClick",
+                _rootRef,
+                _dotNetObjectReference,
+                PortalId
+            );
+        }
+    }
+
+    private async Task CloseDropdownAsync(bool returnFocusToTrigger)
+    {
+        if (!IsOpen)
+            return;
+
+        IsOpen = false;
+        await RemoveOutsideClickListener();
+
+        if (returnFocusToTrigger)
+            await _triggerRef.FocusAsync();
     }
 
     private string GetItemString(TItem item)
@@ -193,10 +270,14 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     private async Task OnInput(ChangeEventArgs e)
     {
         SearchText = e.Value?.ToString() ?? "";
+        _totalItemCount = -1;
+        _highlightedIndex = 0;
 
         if (_debounceCts != null)
         {
-            await _debounceCts.CancelAsync();
+            _debounceCts.Cancel();
+            _debounceCts.Dispose();
+            _debounceCts = null;
         }
 
         _debounceCts = new CancellationTokenSource();
@@ -204,7 +285,7 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
         try
         {
-            await Task.Delay(300, token);
+            await Task.Delay(Math.Max(0, SearchDebounceMs), token);
             await RefreshItems();
         }
         catch (TaskCanceledException)
@@ -230,15 +311,28 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
             IsLoading = true;
             StateHasChanged();
 
-            // Invoke the provider and honor cancellation
-            var result = await DataProvider(new ComboState(SearchText, request.Count, request.StartIndex), request.CancellationToken);
+            try
+            {
+                // Invoke the provider and honor cancellation
+                var result = await DataProvider(
+                    new ComboState(SearchText, request.Count, request.StartIndex),
+                    request.CancellationToken
+                );
 
-            _visibleItems = result.Items.ToList();
-
-            IsLoading = false;
-            StateHasChanged();
-
-            return result;
+                _visibleItems = result.Items.ToList();
+                _totalItemCount = result.TotalItemCount;
+                return result;
+            }
+            catch (OperationCanceledException) when (request.CancellationToken.IsCancellationRequested)
+            {
+                _totalItemCount = -1;
+                return new ItemsProviderResult<TItem>(Array.Empty<TItem>(), 0);
+            }
+            finally
+            {
+                IsLoading = false;
+                await InvokeAsync(StateHasChanged);
+            }
         }
 
         if (StaticData is not null)
@@ -254,10 +348,12 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
                 .ToList();
 
             _visibleItems = page;
+            _totalItemCount = filtered.Count;
             return new ItemsProviderResult<TItem>(page, filtered.Count);
         }
 
         // No data
+        _totalItemCount = 0;
         return new ItemsProviderResult<TItem>(Array.Empty<TItem>(), 0);
     }
 
@@ -271,12 +367,58 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
     private bool IsHighlighted(TItem item)
     {
-        return item != null && _visibleItems.ElementAtOrDefault(_highlightedIndex)?.Equals(item) == true;
+        if (_highlightedIndex < 0 || _highlightedIndex >= _visibleItems.Count)
+            return false;
+
+        var highlighted = _visibleItems[_highlightedIndex];
+        return ItemEquals(highlighted, item);
+    }
+
+    private string GetOptionId(TItem item)
+    {
+        var itemString = GetItemString(item);
+        var hash = unchecked((uint)itemString.GetHashCode(StringComparison.Ordinal));
+        return $"{_listboxId}-option-{hash}";
+    }
+
+    private async Task HandleTriggerKeyDown(KeyboardEventArgs e)
+    {
+        if (Disabled)
+            return;
+
+        if (e.Key is "ArrowDown" or "ArrowUp")
+        {
+            if (!IsOpen)
+            {
+                await OpenDropdownAsync();
+
+                if (e.Key == "ArrowUp" && _visibleItems.Count > 0)
+                    _highlightedIndex = _visibleItems.Count - 1;
+            }
+
+            await ScrollHighlightedItemIntoView();
+        }
+        else if (e.Key == "Escape")
+        {
+            await CloseDropdownAsync(true);
+            StateHasChanged();
+        }
     }
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
-        if (Disabled || _visibleItems.Count == 0) return;
+        if (Disabled)
+            return;
+
+        if (e.Key == "Escape")
+        {
+            await CloseDropdownAsync(true);
+            StateHasChanged();
+            return;
+        }
+
+        if (_visibleItems.Count == 0)
+            return;
 
         if (e.Key == "ArrowDown")
         {
@@ -294,12 +436,9 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         {
             if (_highlightedIndex >= 0 && _highlightedIndex < _visibleItems.Count)
             {
+                _skipNextToggle = true;
                 await ItemClicked(_visibleItems[_highlightedIndex]);
             }
-        }
-        else if (e.Key == "Escape")
-        {
-            IsOpen = false;
         }
     }
 
@@ -307,26 +446,29 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     {
         if (Js != null && _rootRef.HasValue)
         {
-            await Js.InvokeVoidAsync("comboBoxScrollToHighlighted", _rootRef);
+            await Js.InvokeVoidAsync("comboBoxScrollToHighlighted", _rootRef, PortalId);
         }
     }
 
     private async Task ItemClicked(TItem item)
     {
         Value = item;
-        IsOpen = false;
+        await CloseDropdownAsync(true);
         await ValueChanged.InvokeAsync(item);
     }
 
     private async Task AddClicked(string newItem)
     {
-        await AddOptionChanged.InvokeAsync(newItem);
+        var normalized = string.IsNullOrWhiteSpace(newItem) ? null : newItem.Trim();
+        if (string.IsNullOrEmpty(normalized))
+            return;
+
+        await AddOptionChanged.InvokeAsync(normalized);
     }
 
     [JSInvokable] public async Task CloseDropdown()
     {
-        IsOpen = false;
-        await RemoveOutsideClickListener();
+        await CloseDropdownAsync(false);
         StateHasChanged();
     }
 
@@ -346,8 +488,13 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        if (_outsideClickListener is not null)
-            await _outsideClickListener.DisposeAsync();
+        if (_debounceCts is not null)
+        {
+            _debounceCts.Cancel();
+            _debounceCts.Dispose();
+        }
+
+        await RemoveOutsideClickListener();
 
         _dotNetObjectReference = null;
         _debounceCts = null;

@@ -1,6 +1,10 @@
-window.comboBoxRegisterOutsideClick = (element, dotNetHelper) => {
+window.comboBoxRegisterOutsideClick = (element, dotNetHelper, portalId) => {
     function handler(e) {
-        if (!element.contains(e.target)) {
+        const portal = portalId ? document.getElementById(portalId) : null;
+        const clickedInsideRoot = !!element && element.contains(e.target);
+        const clickedInsidePortal = !!portal && portal.contains(e.target);
+
+        if (!clickedInsideRoot && !clickedInsidePortal) {
             dotNetHelper.invokeMethodAsync("CloseDropdown");
         }
     }
@@ -13,10 +17,14 @@ window.comboBoxRegisterOutsideClick = (element, dotNetHelper) => {
 };
 
 
-window.comboBoxScrollToHighlighted = (root) => {
-    if (!root) return;
+window.comboBoxScrollToHighlighted = (root, portalId) => {
+    if (!root && !portalId) return;
 
-    const highlighted = root.querySelector('.combo-item.highlighted');
+    const portal = portalId ? document.getElementById(portalId) : null;
+    const highlighted =
+        (portal && portal.querySelector('.combo-item.highlighted')) ||
+        (root && root.querySelector('.combo-item.highlighted'));
+
     if (highlighted) {
         highlighted.scrollIntoView({block: 'center', behavior: 'smooth'});
     }
