@@ -211,6 +211,8 @@ public sealed class UserIdComparer : IEqualityComparer<User>
 | `Class`                  | `string?`                                          | CSS class applied to the root element.                                                                                   |
 | `InputClass`             | `string?`                                          | CSS class applied to the input element.                                                                                  |
 | `DropdownClass`          | `string?`                                          | CSS class applied to the dropdown container.                                                                             |
+| `DropdownWidth`          | `string?`                                          | Additional CSS width added to trigger width (for example: `"120px"`, `"8rem"`). Defaults to `0` when omitted.      |
+| `AnchorPosition`         | `DropdownAnchorPosition` (default: `Left`)         | Controls expansion anchor for dropdown width: `Left` (expand right), `Center` (expand both sides), `Right` (expand left). |
 | `Label`                  | `string?`                                          | Optional label text for the component.                                                                                   |
 | `ItemSize`               | `float` (default: `50f`)                           | Fixed pixel height of each item for virtualization.                                                                      |
 

@@ -121,6 +121,20 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     public string? DropdownClass { get; set; }
 
     /// <summary>
+    /// Optional additional CSS width value added to the trigger width for the dropdown panel
+    /// (for example: 120px, 8rem, 10vw).
+    /// If not set, the dropdown uses the same width as the trigger.
+    /// </summary>
+    [Parameter]
+    public string? DropdownWidth { get; set; }
+
+    /// <summary>
+    /// Controls where the dropdown width expansion is anchored relative to the trigger.
+    /// </summary>
+    [Parameter]
+    public DropdownAnchorPosition AnchorPosition { get; set; } = DropdownAnchorPosition.Left;
+
+    /// <summary>
     /// Label text displayed for the component, if applicable.
     /// </summary>
     [Parameter]
@@ -192,6 +206,7 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
         if (ShowAddOption && !AddOptionChanged.HasDelegate)
             throw new InvalidOperationException("ShowAddOption requires AddOptionChanged callback.");
+
     }
 
     private bool IsSelectedItem(TItem item)

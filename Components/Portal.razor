@@ -3,11 +3,12 @@
 
 <div id="@Id"
      style="position: absolute;
-         z-index: 9999;
-         display: @(_wasAppended ? "block" : "none");
-     top:@_topPx;
-     left:@_leftPx;
-     width:@_widthPx">
+          z-index: 9999;
+          display: @(_wasAppended ? "block" : "none");
+      top:@_topPx;
+      left:@_leftPx;
+      transform:@_transform;
+      width:@_resolvedWidth">
     @if (_wasAppended)
     {
         @ChildContent
@@ -25,12 +26,20 @@
     [Parameter]
     public bool Show { get; set; }
 
+    [Parameter]
+    public string? Width { get; set; }
+
+    [Parameter]
+    public DropdownAnchorPosition AnchorPosition { get; set; } = DropdownAnchorPosition.Left;
+
     [Parameter, EditorRequired]
     public string Id { get; set; } = null!;
 
     private string _topPx = "0px";
     private string _leftPx = "0px";
     private string _widthPx = "auto";
+    private string _resolvedWidth = "auto";
+    private string _transform = "none";
     private bool _wasAppended;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -44,8 +53,24 @@
             if (pos != null)
             {
                 _topPx = $"{pos.Top.ToString("F1", CultureInfo.InvariantCulture)}px";
-                _leftPx = $"{pos.Left.ToString("F1", CultureInfo.InvariantCulture)}px";
+                _leftPx = AnchorPosition switch
+                {
+                    DropdownAnchorPosition.Center => $"{(pos.Left + (pos.Width / 2d)).ToString("F1", CultureInfo.InvariantCulture)}px",
+                    DropdownAnchorPosition.Right => $"{(pos.Left + pos.Width).ToString("F1", CultureInfo.InvariantCulture)}px",
+                    _ => $"{pos.Left.ToString("F1", CultureInfo.InvariantCulture)}px"
+                };
+
+                _transform = AnchorPosition switch
+                {
+                    DropdownAnchorPosition.Center => "translateX(-50%)",
+                    DropdownAnchorPosition.Right => "translateX(-100%)",
+                    _ => "none"
+                };
+
                 _widthPx = $"{pos.Width.ToString("F1", CultureInfo.InvariantCulture)}px";
+                _resolvedWidth = string.IsNullOrWhiteSpace(Width)
+                    ? _widthPx
+                    : $"calc({_widthPx} + {Width!.Trim()})";
 
                 await JsRuntime.InvokeVoidAsync("portalHelper.appendToBody", Id);
                 _wasAppended = true;

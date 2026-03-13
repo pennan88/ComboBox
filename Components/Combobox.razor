@@ -56,7 +56,7 @@
 
     @if (IsOpen)
     {
-        <Portal Show="IsOpen" TriggerElementId="@_triggerId" Id="@PortalId">
+        <Portal Show="IsOpen" TriggerElementId="@_triggerId" Id="@PortalId" Width="@DropdownWidth" AnchorPosition="@AnchorPosition">
             <div class="@DropdownClasses" @onmousedown:preventDefault>
                 <div class="combo-search-input-container">
                     <span class="combo-search-icon combo-adornment">@Search</span>
