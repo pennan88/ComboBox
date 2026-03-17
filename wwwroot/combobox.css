@@ -242,7 +242,7 @@
 .progress {
     width: 100px;
     height: 16px;
-    margin: 0 auto;
+    margin: 8px auto;
     -webkit-mask-image: radial-gradient(circle closest-side, black 94%, transparent 100%);
     -webkit-mask-size: 20% 100%;
     -webkit-mask-repeat: repeat-x;

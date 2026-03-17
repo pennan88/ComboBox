@@ -42,7 +42,7 @@
 
         @if (string.IsNullOrEmpty(AdornmentIcon))
         {
-            <span class="combo-chevron combo-adornment" >
+            <span class="combo-chevron combo-adornment">
                 @(IsOpen ? ChevronUp : ChevronDown)
             </span>
         }
@@ -133,7 +133,7 @@
                         <div class="combo-no-results">
                             @if (NoResultsTemplate == null)
                             {
-                                <p>@NoResultsText</p>
+                                <p style="margin: 8px auto; text-align: center">@NoResultsText</p>
                             }
                             else
                             {

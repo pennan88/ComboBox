@@ -53,14 +53,28 @@ window.portalHelper = {
             console.error("removeFromBody error:", err);
         }
     },
-    getPosition: function (triggerId) {
+    getPosition: function (triggerId, portalId) {
         const trigger = document.getElementById(triggerId);
         if (!trigger) return null;
+
+        const portal = portalId ? document.getElementById(portalId) : null;
+        const dropdown = portal ? portal.querySelector('.combo-dropdown') : null;
+        const gap = 5;
+
+        const maxHeightCss = dropdown ? window.getComputedStyle(dropdown).maxHeight : null;
+        const preferredHeight = Number.parseFloat(maxHeightCss || '') || 320;
+
         const rect = trigger.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom - gap;
+        const fitsBelow = spaceBelow >= preferredHeight;
+
         return {
-            top: rect.bottom + window.scrollY +5,
+            top: fitsBelow
+                ? (rect.bottom + window.scrollY + gap)
+                : (rect.top + window.scrollY - gap),
             left: rect.left + window.scrollX,
-            width: rect.width
+            width: rect.width,
+            placeAbove: !fitsBelow
         };
     }
 };

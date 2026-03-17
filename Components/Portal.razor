@@ -46,9 +46,12 @@
     {
         if (Show)
         {
+            if (_wasAppended)
+                return;
+
             await Task.Delay(1);
 
-            var pos = await JsRuntime.InvokeAsync<Position?>("portalHelper.getPosition", TriggerElementId);
+            var pos = await JsRuntime.InvokeAsync<Position?>("portalHelper.getPosition", TriggerElementId, Id);
 
             if (pos != null)
             {
@@ -60,12 +63,15 @@
                     _ => $"{pos.Left.ToString("F1", CultureInfo.InvariantCulture)}px"
                 };
 
-                _transform = AnchorPosition switch
+                var horizontalTransform = AnchorPosition switch
                 {
                     DropdownAnchorPosition.Center => "translateX(-50%)",
                     DropdownAnchorPosition.Right => "translateX(-100%)",
                     _ => "none"
                 };
+                _transform = pos.PlaceAbove
+                    ? (horizontalTransform == "none" ? "translateY(-100%)" : $"{horizontalTransform} translateY(-100%)")
+                    : horizontalTransform;
 
                 _widthPx = $"{pos.Width.ToString("F1", CultureInfo.InvariantCulture)}px";
                 _resolvedWidth = string.IsNullOrWhiteSpace(Width)
@@ -76,7 +82,7 @@
                 _wasAppended = true;
             }
 
-            StateHasChanged(); // trigger re-render with updated styles
+            StateHasChanged();
         }
         else if (_wasAppended)
         {
@@ -90,6 +96,7 @@
         public double Top { get; init; }
         public double Left { get; init; }
         public double Width { get; init; }
+        public bool PlaceAbove { get; init; }
     }
 
     public void Dispose()

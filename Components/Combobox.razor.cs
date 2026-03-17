@@ -86,13 +86,13 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     public bool ShowAddOption { get; set; } = false;
 
     [Parameter]
-    public string AddOptionText { get; set; } = "Add";
+    public string AddOptionText { get; set; } = "Add.";
 
     [Parameter]
     public string SearchPlaceholder { get; set; } = "Search...";
 
     [Parameter]
-    public string NoResultsText { get; set; } = "No results";
+    public string NoResultsText { get; set; } = "No results.";
     [Parameter]
     public string? AdornmentIcon { get; set; }
 
