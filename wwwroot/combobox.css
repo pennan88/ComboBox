@@ -90,6 +90,13 @@
     flex-direction: column;
 }
 
+.combo-overlay {
+    position: fixed;
+    inset: 0;
+    background: transparent;
+    z-index: 999;
+}
+
 
 /* Search input inside dropdown */
 .combo-search-input-container {

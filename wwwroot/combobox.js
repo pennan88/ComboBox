@@ -30,6 +30,34 @@ window.comboBoxScrollToHighlighted = (root, portalId) => {
     }
 };
 
+window.comboBodyScroll = (() => {
+    let lockCount = 0;
+    let previousOverflow = "";
+
+    return {
+        lock: () => {
+            if (!document.body) return;
+
+            if (lockCount === 0) {
+                previousOverflow = document.body.style.overflow;
+                document.body.style.overflow = "hidden";
+            }
+
+            lockCount += 1;
+        },
+        unlock: () => {
+            if (!document.body || lockCount === 0) return;
+
+            lockCount -= 1;
+
+            if (lockCount === 0) {
+                document.body.style.overflow = previousOverflow;
+                previousOverflow = "";
+            }
+        }
+    };
+})();
+
 window.portalHelper = {
     appendToBody: function (id) {
         try {
