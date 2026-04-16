@@ -1,6 +1,12 @@
 window.comboBoxRegisterOutsideClick = (element, dotNetHelper, portalId) => {
+    let lastTouchY = null;
+
+    function getPortal() {
+        return portalId ? document.getElementById(portalId) : null;
+    }
+
     function handler(e) {
-        const portal = portalId ? document.getElementById(portalId) : null;
+        const portal = getPortal();
         const clickedInsideRoot = !!element && element.contains(e.target);
         const clickedInsidePortal = !!portal && portal.contains(e.target);
 
@@ -9,29 +15,88 @@ window.comboBoxRegisterOutsideClick = (element, dotNetHelper, portalId) => {
         }
     }
 
-    function blockOverlayScroll(e) {
-        const portal = portalId ? document.getElementById(portalId) : null;
-        const overlay = portal ? portal.querySelector('.combo-overlay') : null;
-        const dropdown = portal ? portal.querySelector('.combo-dropdown') : null;
-        const target = e.target;
+    function canScroll(container, deltaY) {
+        if (!container) return false;
 
-        const insideOverlay = !!overlay && overlay.contains(target);
+        if (deltaY > 0) {
+            return container.scrollTop + container.clientHeight < container.scrollHeight - 1;
+        }
+
+        if (deltaY < 0) {
+            return container.scrollTop > 0;
+        }
+
+        return true;
+    }
+
+    function shouldBlockScroll(target, deltaY) {
+        const portal = getPortal();
+        if (!portal) return false;
+
+        const dropdown = portal.querySelector('.combo-dropdown');
         const insideDropdown = !!dropdown && dropdown.contains(target);
 
-        if (insideOverlay && !insideDropdown) {
+        if (!insideDropdown) {
+            return true;
+        }
+
+        if (!(target instanceof Element)) {
+            return true;
+        }
+
+        const scrollContainer = target.closest('.combo-content-container');
+        if (!scrollContainer || !dropdown.contains(scrollContainer)) {
+            return true;
+        }
+
+        return !canScroll(scrollContainer, deltaY);
+    }
+
+    function blockOverlayWheel(e) {
+        if (shouldBlockScroll(e.target, e.deltaY)) {
             e.preventDefault();
         }
     }
 
+    function onTouchStart(e) {
+        if (e.touches.length > 0) {
+            lastTouchY = e.touches[0].clientY;
+        }
+    }
+
+    function blockOverlayTouchMove(e) {
+        if (e.touches.length === 0 || lastTouchY === null) {
+            return;
+        }
+
+        const currentY = e.touches[0].clientY;
+        const deltaY = lastTouchY - currentY;
+        lastTouchY = currentY;
+
+        if (shouldBlockScroll(e.target, deltaY)) {
+            e.preventDefault();
+        }
+    }
+
+    function onTouchEnd() {
+        lastTouchY = null;
+    }
+
     document.addEventListener("click", handler);
-    document.addEventListener("wheel", blockOverlayScroll, { passive: false });
-    document.addEventListener("touchmove", blockOverlayScroll, { passive: false });
+    document.addEventListener("wheel", blockOverlayWheel, { passive: false });
+    document.addEventListener("touchstart", onTouchStart, { passive: true });
+    document.addEventListener("touchmove", blockOverlayTouchMove, { passive: false });
+    document.addEventListener("touchend", onTouchEnd, { passive: true });
+    document.addEventListener("touchcancel", onTouchEnd, { passive: true });
 
     return {
         dispose: () => {
             document.removeEventListener("click", handler);
-            document.removeEventListener("wheel", blockOverlayScroll);
-            document.removeEventListener("touchmove", blockOverlayScroll);
+            document.removeEventListener("wheel", blockOverlayWheel);
+            document.removeEventListener("touchstart", onTouchStart);
+            document.removeEventListener("touchmove", blockOverlayTouchMove);
+            document.removeEventListener("touchend", onTouchEnd);
+            document.removeEventListener("touchcancel", onTouchEnd);
         },
     };
 };
