@@ -184,7 +184,6 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     private int _highlightedIndex;
     private int _totalItemCount = -1;
     private bool _skipNextToggle;
-    private bool _bodyScrollLocked;
     private bool ShowNoResults => !IsLoading && _totalItemCount == 0;
     private string? ActiveDescendantId =>
         IsOpen && _highlightedIndex >= 0 && _highlightedIndex < _visibleItems.Count
@@ -261,9 +260,6 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
                 _dotNetObjectReference,
                 PortalId
             );
-
-            await Js.InvokeVoidAsync("comboBodyScroll.lock");
-            _bodyScrollLocked = true;
         }
     }
 
@@ -274,12 +270,6 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
         IsOpen = false;
         await RemoveOutsideClickListener();
-
-        if (_bodyScrollLocked && Js != null)
-        {
-            await Js.InvokeVoidAsync("comboBodyScroll.unlock");
-            _bodyScrollLocked = false;
-        }
 
         if (returnFocusToTrigger)
             await _triggerRef.FocusAsync();
@@ -525,12 +515,6 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         _debounceCts = null;
         _outsideClickListener = null;
         _virtualizeRef = null;
-
-        if (_bodyScrollLocked && Js != null)
-        {
-            await Js.InvokeVoidAsync("comboBodyScroll.unlock");
-            _bodyScrollLocked = false;
-        }
 
         if (Js != null)
         {

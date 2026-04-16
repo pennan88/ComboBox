@@ -91,10 +91,19 @@
 }
 
 .combo-overlay {
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: 0 !important;
+    align-items: center;
+    justify-content: center;
+    border-radius: inherit;
+    display: flex;
     position: fixed;
-    inset: 0;
+    transition: .3s cubic-bezier(0.25, 0.8, 0.5, 1), z-index 1ms;
+    z-index: 5;
     background: transparent;
-    z-index: 999;
 }
 
 

@@ -9,10 +9,30 @@ window.comboBoxRegisterOutsideClick = (element, dotNetHelper, portalId) => {
         }
     }
 
+    function blockOverlayScroll(e) {
+        const portal = portalId ? document.getElementById(portalId) : null;
+        const overlay = portal ? portal.querySelector('.combo-overlay') : null;
+        const dropdown = portal ? portal.querySelector('.combo-dropdown') : null;
+        const target = e.target;
+
+        const insideOverlay = !!overlay && overlay.contains(target);
+        const insideDropdown = !!dropdown && dropdown.contains(target);
+
+        if (insideOverlay && !insideDropdown) {
+            e.preventDefault();
+        }
+    }
+
     document.addEventListener("click", handler);
+    document.addEventListener("wheel", blockOverlayScroll, { passive: false });
+    document.addEventListener("touchmove", blockOverlayScroll, { passive: false });
 
     return {
-        dispose: () => document.removeEventListener("click", handler),
+        dispose: () => {
+            document.removeEventListener("click", handler);
+            document.removeEventListener("wheel", blockOverlayScroll);
+            document.removeEventListener("touchmove", blockOverlayScroll);
+        },
     };
 };
 
@@ -29,34 +49,6 @@ window.comboBoxScrollToHighlighted = (root, portalId) => {
         highlighted.scrollIntoView({block: 'center', behavior: 'smooth'});
     }
 };
-
-window.comboBodyScroll = (() => {
-    let lockCount = 0;
-    let previousOverflow = "";
-
-    return {
-        lock: () => {
-            if (!document.body) return;
-
-            if (lockCount === 0) {
-                previousOverflow = document.body.style.overflow;
-                document.body.style.overflow = "hidden";
-            }
-
-            lockCount += 1;
-        },
-        unlock: () => {
-            if (!document.body || lockCount === 0) return;
-
-            lockCount -= 1;
-
-            if (lockCount === 0) {
-                document.body.style.overflow = previousOverflow;
-                previousOverflow = "";
-            }
-        }
-    };
-})();
 
 window.portalHelper = {
     appendToBody: function (id) {
