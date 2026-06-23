@@ -220,6 +220,10 @@
     align-items: center;
 }
 
+.select-item-content {
+    min-height: 32px;
+}
+
 .combo-checkmark {
     font-weight: bold;
 }

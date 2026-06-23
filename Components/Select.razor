@@ -1,0 +1,126 @@
+@typeparam TItem
+
+<div class="@Classes" @ref="_rootRef">
+    @if (!string.IsNullOrEmpty(Label))
+    {
+        <label class="combo-label" for="@_triggerId">@Label</label>
+    }
+
+    <button id="@_triggerId"
+            @ref="_triggerRef"
+            type="button"
+            class="@InputClasses"
+            role="combobox"
+            aria-haspopup="listbox"
+            aria-expanded="@IsOpen"
+            aria-controls="@_listboxId"
+            aria-label="@TriggerAriaLabel"
+            @onclick="ToggleDropdown"
+            @onkeydown="HandleTriggerKeyDown">
+        @if (Value is not null)
+        {
+            if (SelectedTemplate is not null)
+            {
+                <span class="combo-trigger-content combo-selected-template">
+                    @SelectedTemplate(Value!)
+                </span>
+            }
+            else
+            {
+                <span class="combo-trigger-content">
+                    <span class="combo-value">@GetItemString(Value)</span>
+                </span>
+            }
+        }
+        else
+        {
+            <span class="combo-trigger-content">
+                <span class="combo-placeholder">@Placeholder</span>
+            </span>
+        }
+
+        <span class="combo-chevron combo-adornment">
+            @(IsOpen ? ChevronUp : ChevronDown)
+        </span>
+    </button>
+
+    @if (IsOpen)
+    {
+        <Portal Show="IsOpen" TriggerElementId="@_triggerId" Id="@PortalId" Width="@DropdownWidth" AnchorPosition="@AnchorPosition">
+            <div class="combo-overlay" @onclick="CloseDropdown"></div>
+            <div class="@DropdownClasses" @onmousedown:preventDefault>
+                <div class="combo-content-container" id="@_listboxId" role="listbox">
+                    @if (IsLoading)
+                    {
+                        <div class="combo-loading">Loading...</div>
+                        <div class="progress"></div>
+                    }
+                    else if (ItemsList.Count == 0)
+                    {
+                        <div class="combo-no-results">
+                            @if (NoResultsTemplate is null)
+                            {
+                                <p style="margin: 8px auto; text-align: center">@NoResultsText</p>
+                            }
+                            else
+                            {
+                                @NoResultsTemplate
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var item in ItemsList)
+                        {
+                            <div id="@GetOptionId(item)"
+                                 role="option"
+                                 aria-selected="@IsSelectedItem(item)"
+                                 class="combo-item @(IsHighlighted(item) ? "highlighted" : "")"
+                                 @onclick="@(() => ItemClicked(item))">
+                                <div class="combo-item-content select-item-content">
+                                    @if (ShowCheckmarkInList && IsSelectedItem(item))
+                                    {
+                                        <span class="combo-checkmark combo-adornment">@CheckMark</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="combo-checkmark combo-adornment" style="opacity: 0">@CheckMark</span>
+                                    }
+
+                                    @if (ItemTemplate is not null)
+                                    {
+                                        @ItemTemplate(item)
+                                    }
+                                    else
+                                    {
+                                        <span>@GetItemString(item)</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        </Portal>
+    }
+</div>
+
+@code {
+    private RenderFragment CheckMark => @<svg xmlns="http://www.w3.org/2000/svg" height="16px" width="16px"
+                                              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                              stroke-linejoin="round" class="lucide lucide-check-icon lucide-check">
+                                            <path d="M20 6 9 17l-5-5"/>
+                                        </svg>;
+
+    private RenderFragment ChevronDown => @<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+                                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                                stroke-linejoin="round" class="lucide lucide-chevron-down-icon lucide-chevron-down">
+                                              <path d="m6 9 6 6 6-6"/>
+                                          </svg>;
+
+    private RenderFragment ChevronUp => @<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                              class="lucide lucide-chevron-up-icon lucide-chevron-up">
+                                            <path d="m18 15-6-6-6 6"/>
+                                        </svg>;
+}

@@ -141,6 +141,45 @@ async ValueTask<ItemsProviderResult<User>> Search(ComboState state, Cancellation
 }
 ```
 
+### Simple Select Example
+
+```razor
+<Select TItem="string"
+        Items="Fruits"
+        @bind-Value="SelectedFruit"
+        Placeholder="Choose a fruit..." />
+```
+
+```csharp
+@code {
+    private string? SelectedFruit;
+    private List<string> Fruits = ["Apple", "Banana", "Cherry"];
+}
+```
+
+Use `<Select>` when you want the same trigger/dropdown styling without search, virtualization, or remote loading.
+
+For server-side options without pagination, use `DataProvider`:
+
+```razor
+<Select TItem="User"
+        DataProvider="LoadUsers"
+        @bind-Value="SelectedUser"
+        ToStringFunc="@(user => user.Name)"
+        Placeholder="Choose a user..." />
+```
+
+```csharp
+@code {
+    private User? SelectedUser;
+
+    private async ValueTask<IEnumerable<User>> LoadUsers(CancellationToken cancellationToken)
+    {
+        return await UserClient.GetUsersAsync(cancellationToken);
+    }
+}
+```
+
 ### Custom Equality Example
 
 ```razor
