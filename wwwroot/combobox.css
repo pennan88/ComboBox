@@ -21,6 +21,7 @@
 
 /* Trigger button */
 .combo-trigger {
+    box-sizing: border-box;
     width: 100%;
     padding: 10px 12px;
     min-height: var(--trigger-min-height);
@@ -70,12 +71,14 @@
 }
 
 .combo-chevron {
+    flex: 0 0 auto;
     margin-left: 8px;
     font-size: 14px;
 }
 
 /* Dropdown panel */
 .combo-dropdown {
+    box-sizing: border-box;
     position: relative;
     z-index: 1000;
     box-shadow: 0 0 #0000, 0 0 #0000,
@@ -194,6 +197,7 @@
 
 /* Item styling */
 .combo-item {
+    box-sizing: border-box;
     font-family: Lato, sans-serif;
     display: flex;
     width: 100%;
@@ -214,10 +218,18 @@
 }
 
 .combo-item-content {
+    box-sizing: border-box;
     display: flex;
     gap: 8px;
     padding: 6px 8px;
     align-items: center;
+    width: 100%;
+    min-width: 0;
+}
+
+.combo-item-content > :not(.combo-checkmark) {
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 .select-item-content {
@@ -225,6 +237,7 @@
 }
 
 .combo-checkmark {
+    flex: 0 0 auto;
     font-weight: bold;
 }
 
