@@ -479,6 +479,7 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
             return;
 
         await AddOptionChanged.InvokeAsync(normalized);
+        await CloseDropdownAsync(true);
     }
 
     [JSInvokable] public async Task CloseDropdown()
