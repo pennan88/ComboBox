@@ -8,7 +8,7 @@ on:
 jobs:
   build-and-publish:
     permissions: 
-      id: write: write
+      id-token: write
           
     runs-on: ubuntu-latest
 
