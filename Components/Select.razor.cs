@@ -42,6 +42,9 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
     public bool ShowCheckmarkInList { get; set; } = true;
 
     [Parameter]
+    public Func<TItem, bool>? ItemDisabledFunc { get; set; }
+
+    [Parameter]
     public RenderFragment<TItem>? ItemTemplate { get; set; }
 
     [Parameter]
@@ -102,6 +105,7 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
     private CancellationTokenSource? _loadCts;
     private bool IsOpen { get; set; }
     private bool IsLoading { get; set; }
+    private bool _skipNextToggle;
     private int _highlightedIndex;
 
     protected override void OnParametersSet()
@@ -142,6 +146,12 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
     {
         if (Disabled)
             return;
+
+        if (_skipNextToggle)
+        {
+            _skipNextToggle = false;
+            return;
+        }
 
         if (IsOpen)
             await CloseDropdownAsync(true);
@@ -224,8 +234,8 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
 
     private void SetHighlightedIndexToSelectedItem()
     {
-        var selectedIndex = ItemsList.FindIndex(IsSelectedItem);
-        _highlightedIndex = selectedIndex >= 0 ? selectedIndex : 0;
+        var selectedIndex = ItemsList.FindIndex(item => IsSelectedItem(item) && !IsItemDisabled(item));
+        _highlightedIndex = selectedIndex >= 0 ? selectedIndex : FindNextEnabledIndex(0, 1);
     }
 
     private bool IsHighlighted(TItem item)
@@ -234,6 +244,20 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
             return false;
 
         return ItemEquals(ItemsList[_highlightedIndex], item);
+    }
+
+    private bool IsItemDisabled(TItem item)
+    {
+        return ItemDisabledFunc?.Invoke(item) == true;
+    }
+
+    private string GetItemClasses(TItem item)
+    {
+        return new ClassBuilder()
+            .AddClass("combo-item")
+            .AddClass("highlighted", IsHighlighted(item))
+            .AddClass("combo-item-disabled", IsItemDisabled(item))
+            .Build();
     }
 
     private string GetOptionId(TItem item)
@@ -262,6 +286,14 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
             await CloseDropdownAsync(true);
             StateHasChanged();
         }
+        else if (e.Key == "Enter" && IsOpen)
+        {
+            if (_highlightedIndex >= 0 && _highlightedIndex < ItemsList.Count && !IsItemDisabled(ItemsList[_highlightedIndex]))
+            {
+                _skipNextToggle = true;
+                await ItemClicked(ItemsList[_highlightedIndex]);
+            }
+        }
     }
 
     private void MoveHighlight(int offset)
@@ -269,7 +301,23 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
         if (ItemsList.Count == 0)
             return;
 
-        _highlightedIndex = Math.Clamp(_highlightedIndex + offset, 0, ItemsList.Count - 1);
+        var startIndex = _highlightedIndex < 0 ? (offset > 0 ? 0 : ItemsList.Count - 1) : _highlightedIndex + offset;
+        _highlightedIndex = FindNextEnabledIndex(startIndex, offset);
+    }
+
+    private int FindNextEnabledIndex(int startIndex, int offset)
+    {
+        if (ItemsList.Count == 0)
+            return -1;
+
+        var step = offset < 0 ? -1 : 1;
+        for (var index = Math.Clamp(startIndex, 0, ItemsList.Count - 1); index >= 0 && index < ItemsList.Count; index += step)
+        {
+            if (!IsItemDisabled(ItemsList[index]))
+                return index;
+        }
+
+        return -1;
     }
 
     private async Task ScrollHighlightedItemIntoView()
@@ -280,6 +328,9 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
 
     private async Task ItemClicked(TItem item)
     {
+        if (IsItemDisabled(item))
+            return;
+
         Value = item;
         await CloseDropdownAsync(true);
         await ValueChanged.InvokeAsync(item);

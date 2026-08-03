@@ -75,7 +75,8 @@
                             <div id="@GetOptionId(item)"
                                  role="option"
                                  aria-selected="@IsSelectedItem(item)"
-                                 class="combo-item @(IsHighlighted(item) ? "highlighted" : "")"
+                                 aria-disabled="@IsItemDisabled(item)"
+                                 class="@GetItemClasses(item)"
                                  @onclick="@(() => ItemClicked(item))">
                                 <div class="combo-item-content select-item-content">
                                     @if (ShowCheckmarkInList && IsSelectedItem(item))

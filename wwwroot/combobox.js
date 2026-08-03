@@ -1,5 +1,6 @@
 window.comboBoxRegisterOutsideClick = (element, dotNetHelper, portalId) => {
     let lastTouchY = null;
+    const scrollKeys = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown']);
 
     function getPortal() {
         return portalId ? document.getElementById(portalId) : null;
@@ -58,6 +59,16 @@ window.comboBoxRegisterOutsideClick = (element, dotNetHelper, portalId) => {
         }
     }
 
+    function blockOverlayKeyDown(e) {
+        if (!scrollKeys.has(e.key)) {
+            return;
+        }
+
+        if (getPortal()) {
+            e.preventDefault();
+        }
+    }
+
     function onTouchStart(e) {
         if (e.touches.length > 0) {
             lastTouchY = e.touches[0].clientY;
@@ -84,6 +95,7 @@ window.comboBoxRegisterOutsideClick = (element, dotNetHelper, portalId) => {
 
     document.addEventListener("click", handler);
     document.addEventListener("wheel", blockOverlayWheel, { passive: false });
+    document.addEventListener("keydown", blockOverlayKeyDown);
     document.addEventListener("touchstart", onTouchStart, { passive: true });
     document.addEventListener("touchmove", blockOverlayTouchMove, { passive: false });
     document.addEventListener("touchend", onTouchEnd, { passive: true });
@@ -93,6 +105,7 @@ window.comboBoxRegisterOutsideClick = (element, dotNetHelper, portalId) => {
         dispose: () => {
             document.removeEventListener("click", handler);
             document.removeEventListener("wheel", blockOverlayWheel);
+            document.removeEventListener("keydown", blockOverlayKeyDown);
             document.removeEventListener("touchstart", onTouchStart);
             document.removeEventListener("touchmove", blockOverlayTouchMove);
             document.removeEventListener("touchend", onTouchEnd);

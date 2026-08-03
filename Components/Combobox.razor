@@ -102,8 +102,9 @@
                             <div id="@GetOptionId(item)"
                                  role="option"
                                  aria-selected="@IsSelectedItem(item)"
+                                 aria-disabled="@IsItemDisabled(item)"
                                  style="height:@(ItemSize.ToString("F1", CultureInfo.InvariantCulture))px"
-                                 class="combo-item @(IsHighlighted(item) ? "highlighted" : "")"
+                                 class="@GetItemClasses(item)"
                                  @onclick="@(() => ItemClicked(item))">
                                 <div class="combo-item-content">
                                     @if (ShowCheckmarkInList && IsSelectedItem(item))

@@ -213,8 +213,19 @@
     background-color: var(--primary-50);
 }
 
+.combo-item-disabled,
+.combo-item-disabled:hover {
+    cursor: default;
+    opacity: 0.5;
+    background-color: transparent;
+}
+
 .combo-item.highlighted {
     background-color: var(--primary-50);
+}
+
+.combo-item-disabled.highlighted {
+    background-color: transparent;
 }
 
 .combo-item-content {

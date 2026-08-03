@@ -52,6 +52,9 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     [Parameter]
     public bool ShowCheckmarkInList { get; set; } = true;
 
+    [Parameter]
+    public Func<TItem, bool>? ItemDisabledFunc { get; set; }
+
     /// <summary>
     /// Optional provider for asynchronous data loading, taking a single <see cref="ComboState"/> object and a <see cref="CancellationToken"/>.
     /// </summary>
@@ -336,6 +339,7 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
                 _visibleItems = result.Items.ToList();
                 _totalItemCount = result.TotalItemCount;
+                EnsureHighlightedItemIsEnabled();
                 return result;
             }
             catch (OperationCanceledException) when (request.CancellationToken.IsCancellationRequested)
@@ -364,6 +368,7 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
             _visibleItems = page;
             _totalItemCount = filtered.Count;
+            EnsureHighlightedItemIsEnabled();
             return new ItemsProviderResult<TItem>(page, filtered.Count);
         }
 
@@ -387,6 +392,20 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
         var highlighted = _visibleItems[_highlightedIndex];
         return ItemEquals(highlighted, item);
+    }
+
+    private bool IsItemDisabled(TItem item)
+    {
+        return ItemDisabledFunc?.Invoke(item) == true;
+    }
+
+    private string GetItemClasses(TItem item)
+    {
+        return new ClassBuilder()
+            .AddClass("combo-item")
+            .AddClass("highlighted", IsHighlighted(item))
+            .AddClass("combo-item-disabled", IsItemDisabled(item))
+            .Build();
     }
 
     private string GetOptionId(TItem item)
@@ -437,24 +456,56 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
         if (e.Key == "ArrowDown")
         {
-            _highlightedIndex = Math.Min(_highlightedIndex + 1, _visibleItems.Count - 1);
+            MoveHighlight(1);
             StateHasChanged();
             await ScrollHighlightedItemIntoView();
         }
         else if (e.Key == "ArrowUp")
         {
-            _highlightedIndex = Math.Max(_highlightedIndex - 1, 0);
+            MoveHighlight(-1);
             StateHasChanged();
             await ScrollHighlightedItemIntoView();
         }
         else if (e.Key == "Enter")
         {
-            if (_highlightedIndex >= 0 && _highlightedIndex < _visibleItems.Count)
+            if (_highlightedIndex >= 0 && _highlightedIndex < _visibleItems.Count && !IsItemDisabled(_visibleItems[_highlightedIndex]))
             {
                 _skipNextToggle = true;
                 await ItemClicked(_visibleItems[_highlightedIndex]);
             }
         }
+    }
+
+    private void MoveHighlight(int offset)
+    {
+        if (_visibleItems.Count == 0)
+            return;
+
+        var startIndex = _highlightedIndex < 0 ? (offset > 0 ? 0 : _visibleItems.Count - 1) : _highlightedIndex + offset;
+        _highlightedIndex = FindNextEnabledIndex(startIndex, offset);
+    }
+
+    private void EnsureHighlightedItemIsEnabled()
+    {
+        if (_highlightedIndex >= 0 && _highlightedIndex < _visibleItems.Count && !IsItemDisabled(_visibleItems[_highlightedIndex]))
+            return;
+
+        _highlightedIndex = FindNextEnabledIndex(0, 1);
+    }
+
+    private int FindNextEnabledIndex(int startIndex, int offset)
+    {
+        if (_visibleItems.Count == 0)
+            return -1;
+
+        var step = offset < 0 ? -1 : 1;
+        for (var index = Math.Clamp(startIndex, 0, _visibleItems.Count - 1); index >= 0 && index < _visibleItems.Count; index += step)
+        {
+            if (!IsItemDisabled(_visibleItems[index]))
+                return index;
+        }
+
+        return -1;
     }
 
     private async Task ScrollHighlightedItemIntoView()
@@ -467,6 +518,9 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
     private async Task ItemClicked(TItem item)
     {
+        if (IsItemDisabled(item))
+            return;
+
         Value = item;
         await CloseDropdownAsync(true);
         await ValueChanged.InvokeAsync(item);
