@@ -106,7 +106,14 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
     private bool IsOpen { get; set; }
     private bool IsLoading { get; set; }
     private bool _skipNextToggle;
+    private bool _hasRendered;
     private int _highlightedIndex;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+            _hasRendered = true;
+    }
 
     protected override void OnParametersSet()
     {
@@ -347,8 +354,16 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
     {
         if (_outsideClickListener is not null)
         {
-            await _outsideClickListener.InvokeVoidAsync("dispose");
-            await _outsideClickListener.DisposeAsync();
+            try
+            {
+                await _outsideClickListener.InvokeVoidAsync("dispose");
+                await _outsideClickListener.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit closed before teardown; the listener went with it.
+            }
+
             _outsideClickListener = null;
         }
 
@@ -375,7 +390,19 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
         _dotNetObjectReference = null;
         _outsideClickListener = null;
 
-        if (Js is not null)
-            await Js.InvokeVoidAsync("portalHelper.removeFromBody", PortalId);
+        // Safety net for a portal node that outlived its component. Skipped unless the
+        // component actually rendered interactively: during prerendering there is no JS
+        // runtime, and calling into it throws. The circuit can also already be gone.
+        if (Js is not null && _hasRendered)
+        {
+            try
+            {
+                await Js.InvokeVoidAsync("portalHelper.removeFromBody", PortalId);
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit closed before teardown; the DOM went with it.
+            }
+        }
     }
 }

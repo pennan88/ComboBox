@@ -187,11 +187,18 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     private int _highlightedIndex;
     private int _totalItemCount = -1;
     private bool _skipNextToggle;
+    private bool _hasRendered;
     private bool ShowNoResults => !IsLoading && _totalItemCount == 0;
     private string? ActiveDescendantId =>
         IsOpen && _highlightedIndex >= 0 && _highlightedIndex < _visibleItems.Count
             ? GetOptionId(_visibleItems[_highlightedIndex])
             : null;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+            _hasRendered = true;
+    }
 
     protected override void OnParametersSet()
     {
@@ -252,7 +259,6 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         _totalItemCount = -1;
         _highlightedIndex = 0;
         _ = Task.Delay(10).ContinueWith(_ => { InvokeAsync(() => _elementReference.FocusAsync()); });
-        _ = RefreshItems();
 
         _dotNetObjectReference = DotNetObjectReference.Create(this);
         if (Js != null)
@@ -272,6 +278,12 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
             return;
 
         IsOpen = false;
+
+        // The Virtualize inside the portal is torn down along with it. Blazor does not
+        // clear component ref captures on removal, so drop it here: RefreshDataAsync()
+        // is not guarded against a disposed instance and would re-invoke the provider.
+        _virtualizeRef = null;
+
         await RemoveOutsideClickListener();
 
         if (returnFocusToTrigger)
@@ -546,8 +558,16 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     {
         if (_outsideClickListener != null)
         {
-            await _outsideClickListener.InvokeVoidAsync("dispose");
-            await _outsideClickListener.DisposeAsync();
+            try
+            {
+                await _outsideClickListener.InvokeVoidAsync("dispose");
+                await _outsideClickListener.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit closed before teardown; the listener went with it.
+            }
+
             _outsideClickListener = null;
         }
 
@@ -571,9 +591,19 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         _outsideClickListener = null;
         _virtualizeRef = null;
 
-        if (Js != null)
+        // Safety net for a portal node that outlived its component. Skipped unless the
+        // component actually rendered interactively: during prerendering there is no JS
+        // runtime, and calling into it throws. The circuit can also already be gone.
+        if (Js != null && _hasRendered)
         {
-            await Js.InvokeVoidAsync("portalHelper.removeFromBody", PortalId);
+            try
+            {
+                await Js.InvokeVoidAsync("portalHelper.removeFromBody", PortalId);
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit closed before teardown; the DOM went with it.
+            }
         }
     }
 }

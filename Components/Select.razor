@@ -46,7 +46,7 @@
 
     @if (IsOpen)
     {
-        <Portal Show="IsOpen" TriggerElementId="@_triggerId" Id="@PortalId" Width="@DropdownWidth" AnchorPosition="@AnchorPosition">
+        <Portal Show="IsOpen" TriggerElementId="@_triggerId" Id="@PortalId" Width="@DropdownWidth" AnchorPosition="@AnchorPosition" MeasureClass="@DropdownClasses">
             <div class="combo-overlay" @onclick="CloseDropdown"></div>
             <div class="@DropdownClasses" @onmousedown:preventDefault>
                 <div class="combo-content-container" id="@_listboxId" role="listbox">

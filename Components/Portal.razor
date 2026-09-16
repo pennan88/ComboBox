@@ -35,6 +35,14 @@
     [Parameter, EditorRequired]
     public string Id { get; set; } = null!;
 
+    /// <summary>
+    /// Classes of the panel that will be rendered inside this portal. Used only to
+    /// measure the panel's effective max-height while deciding whether the portal
+    /// fits below the trigger, since the panel itself has not rendered yet at that point.
+    /// </summary>
+    [Parameter]
+    public string? MeasureClass { get; set; }
+
     private string _topPx = "0px";
     private string _leftPx = "0px";
     private string _widthPx = "auto";
@@ -51,7 +59,7 @@
 
             await Task.Delay(1);
 
-            var pos = await JsRuntime.InvokeAsync<Position?>("portalHelper.getPosition", TriggerElementId, Id);
+            var pos = await JsRuntime.InvokeAsync<Position?>("portalHelper.getPosition", TriggerElementId, Id, MeasureClass);
 
             if (pos != null)
             {

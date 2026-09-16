@@ -128,7 +128,40 @@ window.comboBoxScrollToHighlighted = (root, portalId) => {
     }
 };
 
-window.portalHelper = {
+window.portalHelper = (function () {
+
+function resolvePreferredHeight(dropdown, measureClass) {
+    const fallback = 320;
+    const readMaxHeight = (el) => Number.parseFloat(window.getComputedStyle(el).maxHeight);
+
+    if (dropdown) {
+        const measured = readMaxHeight(dropdown);
+        if (Number.isFinite(measured) && measured > 0) {
+            return measured;
+        }
+    }
+
+    // The dropdown has not rendered yet when the portal is positioned (Portal only
+    // renders its content once it has been appended to <body>), so measure a throwaway
+    // probe carrying the same classes. It is appended to <body> because that is where
+    // the real dropdown ends up, so contextual selectors resolve the same way.
+    const probe = document.createElement('div');
+    probe.className = measureClass || 'combo-dropdown';
+    probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;top:-9999px;left:-9999px';
+    document.body.appendChild(probe);
+
+    try {
+        const measured = readMaxHeight(probe);
+        return Number.isFinite(measured) && measured > 0 ? measured : fallback;
+    } catch (err) {
+        console.error("resolvePreferredHeight error:", err);
+        return fallback;
+    } finally {
+        probe.remove();
+    }
+}
+
+return {
     appendToBody: function (id) {
         try {
             const el = document.getElementById(id);
@@ -142,16 +175,16 @@ window.portalHelper = {
     removeFromBody: function (id) {
         try {
             const el = document.getElementById(id);
+            // Blazor removes the portal node itself when the component is torn down,
+            // so "already gone" is the normal case here, not a problem worth reporting.
             if (el && el.remove) {
-                el.remove(); 
-            } else {
-                console.warn("removeFromBody: element not found or can't be removed", {el, id});
+                el.remove();
             }
         } catch (err) {
             console.error("removeFromBody error:", err);
         }
     },
-    getPosition: function (triggerId, portalId) {
+    getPosition: function (triggerId, portalId, measureClass) {
         const trigger = document.getElementById(triggerId);
         if (!trigger) return null;
 
@@ -159,8 +192,7 @@ window.portalHelper = {
         const dropdown = portal ? portal.querySelector('.combo-dropdown') : null;
         const gap = 5;
 
-        const maxHeightCss = dropdown ? window.getComputedStyle(dropdown).maxHeight : null;
-        const preferredHeight = Number.parseFloat(maxHeightCss || '') || 320;
+        const preferredHeight = resolvePreferredHeight(dropdown, measureClass);
 
         const rect = trigger.getBoundingClientRect();
         const spaceBelow = window.innerHeight - rect.bottom - gap;
@@ -176,3 +208,5 @@ window.portalHelper = {
         };
     }
 };
+
+})();
