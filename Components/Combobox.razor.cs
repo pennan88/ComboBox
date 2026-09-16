@@ -168,6 +168,11 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
     private string DropdownClasses => new ClassBuilder()
         .AddClass("combo-dropdown")
+        // Holds the dropdown at a definite height until rows are actually in the DOM, so
+        // Virtualize measures the scroll container at its settled size on the first pass.
+        // Only for DataProvider: re-measuring a StaticData list costs nothing but local
+        // filtering, and holding the height there just leaves whitespace under short lists.
+        .AddClass("combo-measuring", DataProvider is not null && !_hasRenderedItems)
         .AddClass(DropdownClass)
         .Build();
 
@@ -188,6 +193,7 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     private int _totalItemCount = -1;
     private bool _skipNextToggle;
     private bool _hasRendered;
+    private bool _hasRenderedItems;
     private bool ShowNoResults => !IsLoading && _totalItemCount == 0;
     private string? ActiveDescendantId =>
         IsOpen && _highlightedIndex >= 0 && _highlightedIndex < _visibleItems.Count
@@ -198,6 +204,15 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     {
         if (firstRender)
             _hasRendered = true;
+
+        // Release the definite height only once rows are on screen. Releasing it in the
+        // same render batch that the data arrives in can expose a frame where the scroll
+        // container has collapsed back to 0px, which makes Virtualize re-measure and refetch.
+        if (IsOpen && !_hasRenderedItems && _visibleItems.Count > 0)
+        {
+            _hasRenderedItems = true;
+            StateHasChanged();
+        }
     }
 
     protected override void OnParametersSet()
@@ -278,6 +293,7 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
             return;
 
         IsOpen = false;
+        _hasRenderedItems = false;
 
         // The Virtualize inside the portal is torn down along with it. Blazor does not
         // clear component ref captures on removal, so drop it here: RefreshDataAsync()
@@ -301,6 +317,7 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     {
         SearchText = e.Value?.ToString() ?? "";
         _totalItemCount = -1;
+        _hasRenderedItems = false;
         _highlightedIndex = 0;
 
         if (_debounceCts != null)

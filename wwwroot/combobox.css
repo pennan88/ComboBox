@@ -87,10 +87,20 @@
     border-radius: var(--border-radius);
     border: 1px solid var(--border-primary);
     background-color: var(--background);
-    max-height: 320px;
+    --combo-dropdown-max-height: 320px;
+    max-height: var(--combo-dropdown-max-height);
     overflow-x: hidden;
     display: flex;
     flex-direction: column;
+}
+
+/* While the item count is still unknown, the dropdown takes a DEFINITE height so the
+   scroll container below it has its final height on the very first measurement.
+   Without this the container starts at 0px, Virtualize computes its visible capacity
+   against that, and has to re-measure once items arrive - costing extra ItemsProvider
+   calls. Override --combo-dropdown-max-height (not max-height) to keep the two in sync. */
+.combo-dropdown.combo-measuring {
+    height: var(--combo-dropdown-max-height);
 }
 
 .combo-overlay {
@@ -130,6 +140,10 @@
 
 .combo-content-container {
     overflow: auto;
+    /* Takes the remaining space when the dropdown has a definite height (see
+       .combo-measuring); min-height:0 lets it shrink below its content so it scrolls. */
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 
@@ -284,9 +298,15 @@
 }
 
 .progress {
+    /* Anchored to .combo-dropdown (position:relative) so toggling it never changes the
+       scroll container's height, which would trigger another Virtualize measurement. */
+    position: absolute;
+    left: 50%;
+    bottom: 8px;
+    transform: translateX(-50%);
+    z-index: 1;
     width: 100px;
     height: 16px;
-    margin: 8px auto;
     -webkit-mask-image: radial-gradient(circle closest-side, black 94%, transparent 100%);
     -webkit-mask-size: 20% 100%;
     -webkit-mask-repeat: repeat-x;
