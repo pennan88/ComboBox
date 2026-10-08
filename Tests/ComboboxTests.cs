@@ -122,6 +122,7 @@ public class ComboboxTests : ComboTestContext
             .Add(c => c.ToStringFunc, x => x.Name)
             .Add(c => c.Virtualize, false)
             .Add(c => c.ShowAddOption, true)
+            .Add(c => c.AddOptionPosition, AddOptionPosition.Top)
             .Add(c => c.AddOptionChanged, (string? text) => added.Add(text))
             .Add(c => c.SearchDebounceMs, 0));
 
@@ -354,7 +355,7 @@ public class ComboboxTests : ComboTestContext
         Assert.NotNull(cut.Find(".combo-overlay"));
         Assert.Empty(cut.FindAll(".combo-footer"));
 
-        // The add option keeps its original place above the list.
+        // By default the add option keeps its original place above the list.
         await search.InputAsync(new ChangeEventArgs { Value = "Ap" });
         Assert.Equal("add-button", cut.Find(".combo-content-container").Children.First().ClassList.First());
     }

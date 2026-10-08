@@ -398,6 +398,55 @@
     animation: progress-c3ir73 1s infinite steps(6);
 }
 
+/* Combobox loading row: in the normal flow at the top of the results, shown while there are
+   no results to keep on screen (the first load after opening). */
+.combo-loading-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    flex-shrink: 0;
+}
+
+.combo-loading-row .progress {
+    position: static;
+    transform: none;
+}
+
+/* Combobox reload indicator: a 2px row that is always present at the top of the dropdown, so
+   showing the bar while earlier results stay visible never moves or covers anything. */
+.combo-progress-track {
+    position: relative;
+    flex-shrink: 0;
+    height: 2px;
+    overflow: hidden;
+}
+
+.combo-progress-bar {
+    display: none;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 40%;
+    background-color: var(--primary-600);
+}
+
+.combo-progress-active .combo-progress-bar {
+    display: block;
+    animation: combo-progress-slide 1s ease-in-out infinite;
+}
+
+@keyframes combo-progress-slide {
+    0% {
+        transform: translateX(-100%);
+    }
+
+    100% {
+        transform: translateX(250%);
+    }
+}
+
 .combo-sr-only {
     position: absolute;
     width: 1px;

@@ -98,7 +98,7 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     public string AddOptionText { get; set; } = "Add.";
 
     /// <summary>
-    /// Where the add option row is rendered relative to the results.
+    /// Where the add option row is rendered relative to the results. Defaults to <see cref="AddOptionPosition.Top"/>.
     /// </summary>
     [Parameter]
     public AddOptionPosition AddOptionPosition { get; set; } = AddOptionPosition.Top;
@@ -298,18 +298,25 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     private bool _hasRendered;
     private bool _hasRenderedItems;
 
-    // The SearchText parameter value seen last, so a re-render that passes the same (possibly
-    // stale) value does not overwrite what the user is typing.
+    // The SearchText parameter value received last. Only a change in the parameter itself counts
+    // as the parent setting the text; a re-render that passes the same value never touches the input.
     private string? _lastSearchTextParameter;
+    // The text last emitted through SearchTextChanged. A bound parent passes it straight back as
+    // SearchText, and that echo must not overwrite what the user has typed since.
+    private string? _lastEmittedSearchText;
     // The text last reported through SearchTextChanged (or received from the parent).
     private string _notifiedSearchText = "";
-    // Whether the parent passed SearchText in the current render. A consumer that only listens
-    // to SearchTextChanged never passes it, so its re-renders must not touch the text.
-    private bool _searchTextSupplied;
     private bool _inputFocused;
     private bool _suppressFocusOpen;
+    // False from opening until the data source has returned for the first time. Until then the
+    // dropdown shows only the loading row: no footers and no "no results" content.
+    private bool _hasLoadedOnce;
 
     private bool ShowNoResults => !IsLoading && _totalItemCount == 0;
+    // A loading row in the results area while there is nothing to keep on screen.
+    private bool ShowLoadingRow => IsLoading && (!_hasLoadedOnce || _visibleItems.Count == 0);
+    // A thin bar at the top of the dropdown while earlier results stay visible.
+    private bool ShowProgressBar => IsLoading && !ShowLoadingRow;
     private bool IsAddOptionVisible => ShowAddOption && !string.IsNullOrEmpty(_searchText);
     private bool HasHighlightedItem => !_addOptionHighlighted && _highlightedIndex >= 0 && _highlightedIndex < _visibleItems.Count;
     private string AddOptionId => $"{_listboxId}-add";
@@ -346,12 +353,6 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         }
     }
 
-    public override Task SetParametersAsync(ParameterView parameters)
-    {
-        _searchTextSupplied = parameters.TryGetValue<string?>(nameof(SearchText), out _);
-        return base.SetParametersAsync(parameters);
-    }
-
     protected override void OnParametersSet()
     {
         var hasDataProvider = DataProvider is not null;
@@ -375,17 +376,18 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         if (GroupBy is not null && Virtualize)
             throw new InvalidOperationException("GroupBy is only supported when Virtualize is false.");
 
-        if (_searchTextSupplied && SearchText != _lastSearchTextParameter)
+        if (SearchText != _lastSearchTextParameter)
         {
             _lastSearchTextParameter = SearchText;
             var incoming = SearchText ?? "";
 
             // The parent changed the text: show it, but do not search until the user focuses the input.
-            if (incoming != _searchText)
+            if (incoming != _lastEmittedSearchText && incoming != _searchText)
             {
                 CancelDebounce();
                 _searchText = incoming;
                 _notifiedSearchText = incoming;
+                _lastEmittedSearchText = null;
             }
         }
     }
@@ -471,6 +473,7 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         }
 
         _totalItemCount = -1;
+        _hasLoadedOnce = false;
         ResetHighlight();
 
         if (!SearchInTrigger)
@@ -603,10 +606,9 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
         _notifiedSearchText = _searchText;
 
-        // A bound parent echoes this value back as the SearchText parameter. Recording it
-        // up front keeps that echo from being mistaken for a change made by the parent.
-        if (_searchTextSupplied && SearchTextChanged.HasDelegate)
-            _lastSearchTextParameter = _searchText;
+        // Recorded before invoking: a bound parent re-renders inside the callback and passes the
+        // value straight back as SearchText, which must not count as a change made by the parent.
+        _lastEmittedSearchText = _searchText;
 
         await SearchTextChanged.InvokeAsync(_searchText);
     }
@@ -660,6 +662,7 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
                 _visibleItems = result.Items.ToList();
                 _totalItemCount = result.TotalItemCount;
+                _hasLoadedOnce = true;
                 EnsureHighlightedItemIsEnabled();
                 return result;
             }
@@ -687,12 +690,14 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
             _visibleItems = page;
             _totalItemCount = filtered.Count;
+            _hasLoadedOnce = true;
             EnsureHighlightedItemIsEnabled();
             return new ItemsProviderResult<TItem>(page, filtered.Count);
         }
 
         // No data
         _totalItemCount = 0;
+        _hasLoadedOnce = true;
         return new ItemsProviderResult<TItem>(Array.Empty<TItem>(), 0);
     }
 
@@ -731,6 +736,7 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
             _visibleItems = items;
             _groups = BuildGroups(items);
             _totalItemCount = items.Count;
+            _hasLoadedOnce = true;
 
             if (hadHighlightedItem)
                 _highlightedIndex = _visibleItems.FindIndex(item => ItemEquals(item, previouslyHighlighted));

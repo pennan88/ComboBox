@@ -1,0 +1,26 @@
+@* Passes SearchText="@null" on every render and re-renders whenever SearchTextChanged fires. *@
+
+<Combobox TItem="SearchResult"
+          DataProvider="Search"
+          SearchInTrigger="true"
+          Virtualize="false"
+          SearchDebounceMs="0"
+          SearchText="@null"
+          SearchTextChanged="@(text => Emitted.Add(text))" />
+
+@code {
+    public List<string?> Emitted { get; } = [];
+    public List<string?> Searches { get; } = [];
+    public int RenderCount { get; private set; }
+
+    protected override void OnAfterRender(bool firstRender) => RenderCount++;
+
+    private ValueTask<ItemsProviderResult<SearchResult>> Search(ComboState state, CancellationToken token)
+    {
+        Searches.Add(state.Search);
+        var items = SearchResult.All
+            .Where(x => string.IsNullOrEmpty(state.Search) || x.Name.Contains(state.Search, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        return ValueTask.FromResult(new ItemsProviderResult<SearchResult>(items, items.Count));
+    }
+}

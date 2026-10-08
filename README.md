@@ -283,6 +283,11 @@ Notes:
   The data source is then called once per search with `Skip = 0` and `Take = PageSize`.
 - `DropdownWidth` is added to the width of the input, so `200px` on a 400px input gives a 600px dropdown.
 
+**Loading:** while the first results for an open dropdown are loading, the results area shows only a
+loading row. `FooterTemplate`, `GroupFooterTemplate` and `NoResultsTemplate` appear once the data source
+has returned. Later reloads (typing more, `RefreshAsync()`) keep the current results on screen and show a
+thin progress bar at the top of the dropdown instead. Screen readers hear "Loading results" either way.
+
 ## 🎨 Styling Guidance
 
 - Uses semantic HTML and CSS classes.
@@ -328,7 +333,7 @@ Notes:
 | `Label`                  | `string?`                                          | Optional label text for the component.                                                                                   |
 | `ItemSize`               | `float` (default: `50f`)                           | Fixed pixel height of each item for virtualization.                                                                      |
 | `SearchInTrigger`        | `bool` (default: `false`)                          | Makes the trigger a text input: typing opens and filters the dropdown, which then has no search input of its own. Shows `Placeholder` and a clear (×) button. |
-| `SearchText`             | `string?`                                          | Search text, bindable with `@bind-SearchText`. Prefills the search; changing it from the parent does not search until the input is focused. |
+| `SearchText`             | `string?`                                          | Search text, bindable with `@bind-SearchText`. Prefills the search; changing it from the parent does not search until the input is focused. Only a change in the parameter value is applied: re-rendering with the same value, or with the value just emitted through `SearchTextChanged`, never touches the input. |
 | `SearchTextChanged`      | `EventCallback<string?>`                           | Invoked with the typed text after `SearchDebounceMs`, and immediately when the text is cleared or replaced by a pick.     |
 | `GroupBy`                | `Func<TItem, string>?`                             | Groups consecutive items by key and renders a header whenever the key changes. Items must be sorted by group. Requires `Virtualize="false"`. |
 | `GroupHeaderTemplate`    | `RenderFragment<string>?`                          | Template for a group header. Default: the key as uppercase text.                                                         |

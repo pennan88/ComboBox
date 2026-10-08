@@ -103,6 +103,10 @@
                 <div class="combo-overlay" @onclick="CloseDropdown"></div>
             }
             <div class="@DropdownClasses" @onmousedown:preventDefault>
+                @* Always rendered, so showing the bar on a reload never moves the results. *@
+                <div class="combo-progress-track@(ShowProgressBar ? " combo-progress-active" : "")" aria-hidden="true">
+                    <div class="combo-progress-bar"></div>
+                </div>
                 @if (!SearchInTrigger)
                 {
                     <div class="combo-search-input-container">
@@ -125,6 +129,12 @@
                     @if (IsAddOptionVisible && AddOptionPosition == AddOptionPosition.Top)
                     {
                         @AddOptionRow
+                    }
+                    @if (ShowLoadingRow)
+                    {
+                        <div class="combo-loading-row">
+                            <div class="progress"></div>
+                        </div>
                     }
                     @if (Virtualize)
                     {
@@ -170,7 +180,7 @@
                                     var index = group.StartIndex + i;
                                     @ItemRow(_visibleItems[index], GetOptionId(index), index == _highlightedIndex && !_addOptionHighlighted, null, ReserveCheckmarkSpace)
                                 }
-                                @if (GroupFooterTemplate is not null)
+                                @if (GroupFooterTemplate is not null && _hasLoadedOnce)
                                 {
                                     <div class="combo-group-footer">
                                         @GroupFooterTemplate(group.Context)
@@ -197,12 +207,8 @@
                     {
                         @AddOptionRow
                     }
-                    @if (IsLoading)
-                    {
-                        <div class="progress"></div>
-                    }
                 </div>
-                @if (FooterTemplate is not null)
+                @if (FooterTemplate is not null && _hasLoadedOnce)
                 {
                     <div class="combo-footer">
                         @FooterTemplate
