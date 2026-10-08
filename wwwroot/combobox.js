@@ -1,4 +1,4 @@
-window.comboBoxRegisterOutsideClick = (element, dotNetHelper, portalId) => {
+window.comboBoxRegisterOutsideClick = (element, dotNetHelper, portalId, keepFocusOnMouseDown) => {
     let lastTouchY = null;
     const scrollKeys = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown']);
 
@@ -69,6 +69,24 @@ window.comboBoxRegisterOutsideClick = (element, dotNetHelper, portalId) => {
         }
     }
 
+    // Blazor's @onmousedown:preventDefault does not reach the dropdown once the portal has
+    // been moved to <body>, so focus is kept in the trigger input from here instead: a click
+    // on a row, header or footer button must not blur the input the user is typing in.
+    function keepFocus(e) {
+        const portal = getPortal();
+        const dropdown = portal && portal.querySelector('.combo-dropdown');
+        if (!dropdown || !(e.target instanceof Element) || !dropdown.contains(e.target)) {
+            return;
+        }
+
+        // Form fields placed in a template still need to take focus when clicked.
+        if (e.target.closest('input, textarea, select, [contenteditable]')) {
+            return;
+        }
+
+        e.preventDefault();
+    }
+
     function onTouchStart(e) {
         if (e.touches.length > 0) {
             lastTouchY = e.touches[0].clientY;
@@ -94,6 +112,9 @@ window.comboBoxRegisterOutsideClick = (element, dotNetHelper, portalId) => {
     }
 
     document.addEventListener("click", handler);
+    if (keepFocusOnMouseDown) {
+        document.addEventListener("mousedown", keepFocus);
+    }
     document.addEventListener("wheel", blockOverlayWheel, { passive: false });
     document.addEventListener("keydown", blockOverlayKeyDown);
     document.addEventListener("touchstart", onTouchStart, { passive: true });
@@ -104,6 +125,7 @@ window.comboBoxRegisterOutsideClick = (element, dotNetHelper, portalId) => {
     return {
         dispose: () => {
             document.removeEventListener("click", handler);
+            document.removeEventListener("mousedown", keepFocus);
             document.removeEventListener("wheel", blockOverlayWheel);
             document.removeEventListener("keydown", blockOverlayKeyDown);
             document.removeEventListener("touchstart", onTouchStart);
@@ -120,8 +142,8 @@ window.comboBoxScrollToHighlighted = (root, portalId) => {
 
     const portal = portalId ? document.getElementById(portalId) : null;
     const highlighted =
-        (portal && portal.querySelector('.combo-item.highlighted')) ||
-        (root && root.querySelector('.combo-item.highlighted'));
+        (portal && portal.querySelector('.combo-item.highlighted, .add-button.highlighted')) ||
+        (root && root.querySelector('.combo-item.highlighted, .add-button.highlighted'));
 
     if (highlighted) {
         highlighted.scrollIntoView({block: 'center', behavior: 'smooth'});

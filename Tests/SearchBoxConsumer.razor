@@ -1,0 +1,60 @@
+@* The consumer markup from the "search box mode" acceptance criteria, verbatim apart from the
+   @ref that More() needs in order to call RefreshAsync(). *@
+
+<Combobox @ref="_combo"
+          TItem="SearchResult"
+          DataProvider="Search"
+          SearchInTrigger="true"
+          Virtualize="false"
+          @bind-SearchText="Text"
+          GroupBy="@(x => x.Type)"
+          HighlightFirstItem="false"
+          ShowAddOption="true"
+          AddOptionPosition="AddOptionPosition.Top"
+          AddOptionText="Sök på:"
+          AddOptionChanged="SubmitText"
+          OnItemSelected="Pick"
+          ClearOnSelect="true"
+          DropdownWidth="200px"
+          Placeholder="Sök projekt, användare eller grupp">
+    <GroupHeaderTemplate Context="key">@key</GroupHeaderTemplate>
+    <ItemTemplate Context="item">
+        <div><strong>@item.Name</strong><div>@item.Details</div></div>
+    </ItemTemplate>
+    <GroupFooterTemplate Context="g"><button @onclick="() => More(g.Key)">Visa fler</button></GroupFooterTemplate>
+    <FooterTemplate>↑↓ navigera · Enter väljer · Esc stänger</FooterTemplate>
+</Combobox>
+
+@code {
+    private Combobox<SearchResult>? _combo;
+    private readonly Dictionary<string, int> _takePerGroup = new();
+
+    public string? Text { get; set; }
+    public List<ComboState> Requests { get; } = [];
+    public List<string?> Submitted { get; } = [];
+    public List<SearchResult> Picked { get; } = [];
+
+    private ValueTask<ItemsProviderResult<SearchResult>> Search(ComboState state, CancellationToken token)
+    {
+        Requests.Add(new ComboState(state.Search, state.Take, state.Skip));
+
+        var items = SearchResult.All
+            .Where(x => string.IsNullOrEmpty(state.Search) || x.Name.Contains(state.Search, StringComparison.OrdinalIgnoreCase))
+            .GroupBy(x => x.Type)
+            .OrderBy(g => g.Key)
+            .SelectMany(g => g.Take(_takePerGroup.GetValueOrDefault(g.Key, 2)))
+            .ToList();
+
+        return ValueTask.FromResult(new ItemsProviderResult<SearchResult>(items, items.Count));
+    }
+
+    private void SubmitText(string? text) => Submitted.Add(text);
+
+    private void Pick(SearchResult item) => Picked.Add(item);
+
+    private async Task More(string key)
+    {
+        _takePerGroup[key] = _takePerGroup.GetValueOrDefault(key, 2) + 2;
+        await _combo!.RefreshAsync();
+    }
+}

@@ -13,6 +13,7 @@ namespace ComboBox.Components;
 public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 {
     private string _triggerId = $"combo-trigger-{Guid.NewGuid()}";
+    private string _inputId = $"combo-input-{Guid.NewGuid()}";
     private string _listboxId = $"combo-listbox-{Guid.NewGuid()}";
     [Inject] private IJSRuntime? Js { get; set; }
 
@@ -28,11 +29,16 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     [Parameter]
     public EventCallback<TItem?> ValueChanged { get; set; }
 
+    /// <summary>
+    /// Callback invoked with the current search text when the add option is picked
+    /// (by click, by Enter on the highlighted add row, or by Enter with nothing highlighted).
+    /// </summary>
     [Parameter]
     public EventCallback<string?> AddOptionChanged { get; set; }
 
     /// <summary>
     /// Placeholder text displayed when no value is selected.
+    /// When <see cref="SearchInTrigger"/> is true it is shown inside the search input.
     /// </summary>
     [Parameter]
     public string Placeholder { get; set; } = "";
@@ -84,12 +90,18 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     /// </summary>
     [Parameter]
     public RenderFragment? NoResultsTemplate { get; set; }
-    
+
     [Parameter]
     public bool ShowAddOption { get; set; } = false;
 
     [Parameter]
     public string AddOptionText { get; set; } = "Add.";
+
+    /// <summary>
+    /// Where the add option row is rendered relative to the results.
+    /// </summary>
+    [Parameter]
+    public AddOptionPosition AddOptionPosition { get; set; } = AddOptionPosition.Top;
 
     [Parameter]
     public string SearchPlaceholder { get; set; } = "Search...";
@@ -151,7 +163,87 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
     [Parameter]
     public int SearchDebounceMs { get; set; } = 300;
-    
+
+    /// <summary>
+    /// When true the trigger is a text input: typing opens the dropdown and filters, and the
+    /// dropdown has no search input of its own.
+    /// </summary>
+    [Parameter]
+    public bool SearchInTrigger { get; set; }
+
+    /// <summary>
+    /// The search text. Bind it with <c>@bind-SearchText</c> to prefill the search term or read
+    /// what was typed. Setting it from the parent does not run a search until the user focuses the input.
+    /// </summary>
+    [Parameter]
+    public string? SearchText { get; set; }
+
+    /// <summary>
+    /// Invoked with the search text once the user stops typing (after <see cref="SearchDebounceMs"/>),
+    /// and immediately when the text is cleared or replaced by a pick.
+    /// </summary>
+    [Parameter]
+    public EventCallback<string?> SearchTextChanged { get; set; }
+
+    /// <summary>
+    /// Groups consecutive items by the returned key and renders a header whenever the key changes.
+    /// Items must already be sorted by group. Requires <see cref="Virtualize"/> to be false.
+    /// </summary>
+    [Parameter]
+    public Func<TItem, string>? GroupBy { get; set; }
+
+    /// <summary>
+    /// Template for a group header. Defaults to the key as uppercase text.
+    /// </summary>
+    [Parameter]
+    public RenderFragment<string>? GroupHeaderTemplate { get; set; }
+
+    /// <summary>
+    /// Template rendered after the last item of each group (e.g. a "show more" button).
+    /// Clicking inside it does not close the dropdown or move focus away from the input.
+    /// </summary>
+    [Parameter]
+    public RenderFragment<ComboGroupContext<TItem>>? GroupFooterTemplate { get; set; }
+
+    /// <summary>
+    /// When false the items are rendered without virtualization, so rows may have variable height.
+    /// The data source is then queried once per search with Skip=0 and Take=<see cref="PageSize"/>.
+    /// </summary>
+    [Parameter]
+    public bool Virtualize { get; set; } = true;
+
+    /// <summary>
+    /// Number of items requested per search when <see cref="Virtualize"/> is false.
+    /// </summary>
+    [Parameter]
+    public int PageSize { get; set; } = 50;
+
+    /// <summary>
+    /// Invoked on every pick (click or Enter), in addition to <see cref="ValueChanged"/>.
+    /// </summary>
+    [Parameter]
+    public EventCallback<TItem> OnItemSelected { get; set; }
+
+    /// <summary>
+    /// When true a pick does not set <see cref="Value"/>: the dropdown closes and the search text is cleared.
+    /// Use it together with <see cref="OnItemSelected"/>.
+    /// </summary>
+    [Parameter]
+    public bool ClearOnSelect { get; set; }
+
+    /// <summary>
+    /// When true the first enabled item is highlighted after each search. When false nothing is
+    /// highlighted until the user presses an arrow key, so Enter submits the add option instead.
+    /// </summary>
+    [Parameter]
+    public bool HighlightFirstItem { get; set; } = true;
+
+    /// <summary>
+    /// Static content rendered at the bottom of the dropdown, below the results (e.g. keyboard hints).
+    /// </summary>
+    [Parameter]
+    public RenderFragment? FooterTemplate { get; set; }
+
     private string PortalId { get; } = $"portal-{Guid.NewGuid()}";
 
 
@@ -163,6 +255,7 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
     private string InputClasses => new ClassBuilder()
         .AddClass("combo-trigger")
+        .AddClass("combo-trigger-search", SearchInTrigger)
         .AddClass(InputClass)
         .Build();
 
@@ -172,33 +265,71 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         // Virtualize measures the scroll container at its settled size on the first pass.
         // Only for DataProvider: re-measuring a StaticData list costs nothing but local
         // filtering, and holding the height there just leaves whitespace under short lists.
-        .AddClass("combo-measuring", DataProvider is not null && !_hasRenderedItems)
+        .AddClass("combo-measuring", Virtualize && DataProvider is not null && !_hasRenderedItems)
         .AddClass(DropdownClass)
+        .Build();
+
+    private string AddOptionClasses => new ClassBuilder()
+        .AddClass("add-button")
+        .AddClass("add-button-bottom", AddOptionPosition == AddOptionPosition.Bottom)
+        .AddClass("highlighted", _addOptionHighlighted)
         .Build();
 
     private string TriggerAriaLabel => string.IsNullOrWhiteSpace(Label) ? Placeholder : Label;
 
     private ElementReference? _rootRef;
     private ElementReference _triggerRef;
+    private ElementReference _inputRef;
     private bool IsLoading { get; set; }
     private IJSObjectReference? _outsideClickListener;
     private DotNetObjectReference<Combobox<TItem>>? _dotNetObjectReference;
     private CancellationTokenSource? _debounceCts;
-    private string? SearchText { get; set; }
+    private CancellationTokenSource? _loadCts;
+    private string _searchText = "";
     private Virtualize<TItem>? _virtualizeRef;
     private bool IsOpen { get; set; }
     private ElementReference _elementReference;
     private List<TItem> _visibleItems = [];
+    private List<ItemGroup> _groups = [];
     private int _highlightedIndex;
+    private bool _addOptionHighlighted;
     private int _totalItemCount = -1;
     private bool _skipNextToggle;
     private bool _hasRendered;
     private bool _hasRenderedItems;
+
+    // The SearchText parameter value seen last, so a re-render that passes the same (possibly
+    // stale) value does not overwrite what the user is typing.
+    private string? _lastSearchTextParameter;
+    // The text last reported through SearchTextChanged (or received from the parent).
+    private string _notifiedSearchText = "";
+    // Whether the parent passed SearchText in the current render. A consumer that only listens
+    // to SearchTextChanged never passes it, so its re-renders must not touch the text.
+    private bool _searchTextSupplied;
+    private bool _inputFocused;
+    private bool _suppressFocusOpen;
+
     private bool ShowNoResults => !IsLoading && _totalItemCount == 0;
-    private string? ActiveDescendantId =>
-        IsOpen && _highlightedIndex >= 0 && _highlightedIndex < _visibleItems.Count
-            ? GetOptionId(_visibleItems[_highlightedIndex])
-            : null;
+    private bool IsAddOptionVisible => ShowAddOption && !string.IsNullOrEmpty(_searchText);
+    private bool HasHighlightedItem => !_addOptionHighlighted && _highlightedIndex >= 0 && _highlightedIndex < _visibleItems.Count;
+    private string AddOptionId => $"{_listboxId}-add";
+
+    private string? ActiveDescendantId
+    {
+        get
+        {
+            if (!IsOpen)
+                return null;
+
+            if (_addOptionHighlighted)
+                return IsAddOptionVisible ? AddOptionId : null;
+
+            if (!HasHighlightedItem)
+                return null;
+
+            return Virtualize ? GetOptionId(_visibleItems[_highlightedIndex]) : GetOptionId(_highlightedIndex);
+        }
+    }
 
     protected override void OnAfterRender(bool firstRender)
     {
@@ -213,6 +344,12 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
             _hasRenderedItems = true;
             StateHasChanged();
         }
+    }
+
+    public override Task SetParametersAsync(ParameterView parameters)
+    {
+        _searchTextSupplied = parameters.TryGetValue<string?>(nameof(SearchText), out _);
+        return base.SetParametersAsync(parameters);
     }
 
     protected override void OnParametersSet()
@@ -232,7 +369,60 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         if (ShowAddOption && !AddOptionChanged.HasDelegate)
             throw new InvalidOperationException("ShowAddOption requires AddOptionChanged callback.");
 
+        if (PageSize <= 0)
+            throw new InvalidOperationException("PageSize must be greater than 0.");
+
+        if (GroupBy is not null && Virtualize)
+            throw new InvalidOperationException("GroupBy is only supported when Virtualize is false.");
+
+        if (_searchTextSupplied && SearchText != _lastSearchTextParameter)
+        {
+            _lastSearchTextParameter = SearchText;
+            var incoming = SearchText ?? "";
+
+            // The parent changed the text: show it, but do not search until the user focuses the input.
+            if (incoming != _searchText)
+            {
+                CancelDebounce();
+                _searchText = incoming;
+                _notifiedSearchText = incoming;
+            }
+        }
     }
+
+    /// <summary>
+    /// Moves focus to the search input (when <see cref="SearchInTrigger"/> is true) or to the trigger button.
+    /// </summary>
+    public Task FocusAsync() => InvokeAsync(async () =>
+    {
+        if (!_hasRendered)
+            return;
+
+        if (SearchInTrigger)
+            await _inputRef.FocusAsync();
+        else
+            await _triggerRef.FocusAsync();
+    });
+
+    /// <summary>
+    /// Reloads the items for the current search text, keeping the dropdown open.
+    /// Does nothing while the dropdown is closed; the next open loads fresh data anyway.
+    /// </summary>
+    public Task RefreshAsync() => InvokeAsync(async () =>
+    {
+        if (!IsOpen)
+            return;
+
+        if (Virtualize)
+        {
+            if (_virtualizeRef != null)
+                await _virtualizeRef.RefreshDataAsync();
+        }
+        else
+        {
+            await LoadPageAsync(preserveHighlight: true);
+        }
+    });
 
     private bool IsSelectedItem(TItem item)
     {
@@ -269,11 +459,28 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
     private async Task OpenDropdownAsync()
     {
+        await CancelPendingSearchAsync();
+
         IsOpen = true;
-        SearchText = "";
+        // The trigger input keeps whatever was typed; the in-dropdown search starts empty
+        // unless the parent prefilled it through SearchText.
+        if (!SearchInTrigger)
+        {
+            _searchText = SearchText ?? "";
+            _notifiedSearchText = _searchText;
+        }
+
         _totalItemCount = -1;
-        _highlightedIndex = 0;
-        _ = Task.Delay(10).ContinueWith(_ => { InvokeAsync(() => _elementReference.FocusAsync()); });
+        ResetHighlight();
+
+        if (!SearchInTrigger)
+            _ = Task.Delay(10).ContinueWith(_ => { InvokeAsync(() => _elementReference.FocusAsync()); });
+
+        if (!Virtualize)
+        {
+            _visibleItems = [];
+            _groups = [];
+        }
 
         _dotNetObjectReference = DotNetObjectReference.Create(this);
         if (Js != null)
@@ -282,18 +489,26 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
                 "comboBoxRegisterOutsideClick",
                 _rootRef,
                 _dotNetObjectReference,
-                PortalId
+                PortalId,
+                SearchInTrigger
             );
         }
+
+        if (!Virtualize)
+            await LoadPageAsync(preserveHighlight: false);
     }
 
     private async Task CloseDropdownAsync(bool returnFocusToTrigger)
     {
+        await CancelPendingSearchAsync();
+
         if (!IsOpen)
             return;
 
         IsOpen = false;
         _hasRenderedItems = false;
+        _addOptionHighlighted = false;
+        CancelLoad();
 
         // The Virtualize inside the portal is torn down along with it. Blazor does not
         // clear component ref captures on removal, so drop it here: RefreshDataAsync()
@@ -303,7 +518,24 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         await RemoveOutsideClickListener();
 
         if (returnFocusToTrigger)
+            await FocusTriggerAsync();
+    }
+
+    private async Task FocusTriggerAsync()
+    {
+        if (!SearchInTrigger)
+        {
             await _triggerRef.FocusAsync();
+            return;
+        }
+
+        // A pick by mouse or keyboard leaves focus in the input, so this only matters when
+        // it has moved elsewhere. Getting it back must not reopen the dropdown.
+        if (!_inputFocused)
+        {
+            _suppressFocusOpen = true;
+            await _inputRef.FocusAsync();
+        }
     }
 
     private string GetItemString(TItem item)
@@ -315,39 +547,99 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
     private async Task OnInput(ChangeEventArgs e)
     {
-        SearchText = e.Value?.ToString() ?? "";
+        _searchText = e.Value?.ToString() ?? "";
         _totalItemCount = -1;
         _hasRenderedItems = false;
-        _highlightedIndex = 0;
+        ResetHighlight();
 
-        if (_debounceCts != null)
-        {
-            _debounceCts.Cancel();
-            _debounceCts.Dispose();
-            _debounceCts = null;
-        }
-
+        CancelDebounce();
         _debounceCts = new CancellationTokenSource();
         var token = _debounceCts.Token;
 
         try
         {
             await Task.Delay(Math.Max(0, SearchDebounceMs), token);
-            await RefreshItems();
         }
         catch (TaskCanceledException)
         {
+            return;
         }
+
+        await NotifySearchTextAsync();
+        if (token.IsCancellationRequested)
+            return;
+
+        if (SearchInTrigger && !IsOpen)
+        {
+            // Typing in the trigger opens the dropdown; opening loads the items itself.
+            if (!string.IsNullOrEmpty(_searchText) && !Disabled)
+                await OpenDropdownAsync();
+            return;
+        }
+
+        await RefreshItems();
     }
 
     private async Task RefreshItems()
     {
-        if (_virtualizeRef != null)
+        if (!IsOpen)
+            return;
+
+        if (Virtualize)
         {
-            await _virtualizeRef.RefreshDataAsync();
+            if (_virtualizeRef != null)
+                await _virtualizeRef.RefreshDataAsync();
+        }
+        else
+        {
+            await LoadPageAsync(preserveHighlight: false);
         }
     }
 
+    private async Task NotifySearchTextAsync()
+    {
+        if (_searchText == _notifiedSearchText)
+            return;
+
+        _notifiedSearchText = _searchText;
+
+        // A bound parent echoes this value back as the SearchText parameter. Recording it
+        // up front keeps that echo from being mistaken for a change made by the parent.
+        if (_searchTextSupplied && SearchTextChanged.HasDelegate)
+            _lastSearchTextParameter = _searchText;
+
+        await SearchTextChanged.InvokeAsync(_searchText);
+    }
+
+    /// <summary>
+    /// Drops a pending debounced search but still reports the text typed so far.
+    /// </summary>
+    private async Task CancelPendingSearchAsync()
+    {
+        CancelDebounce();
+        await NotifySearchTextAsync();
+    }
+
+    private void CancelDebounce()
+    {
+        if (_debounceCts == null)
+            return;
+
+        _debounceCts.Cancel();
+        _debounceCts.Dispose();
+        _debounceCts = null;
+    }
+
+    private void CancelLoad()
+    {
+        if (_loadCts == null)
+            return;
+
+        _loadCts.Cancel();
+        _loadCts.Dispose();
+        _loadCts = null;
+        IsLoading = false;
+    }
 
     private async ValueTask<ItemsProviderResult<TItem>> LoadItems(
         ItemsProviderRequest request)
@@ -362,7 +654,7 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
             {
                 // Invoke the provider and honor cancellation
                 var result = await DataProvider(
-                    new ComboState(SearchText, request.Count, request.StartIndex),
+                    new ComboState(_searchText, request.Count, request.StartIndex),
                     request.CancellationToken
                 );
 
@@ -386,9 +678,7 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         if (StaticData is not null)
         {
             // Client‐side:
-            var filtered = string.IsNullOrEmpty(SearchText)
-                ? StaticData
-                : StaticData.Where(item => ItemMatches(item, SearchText)).ToList();
+            var filtered = FilterStaticData(_searchText);
 
             var page = filtered
                 .Skip(request.StartIndex)
@@ -406,6 +696,90 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         return new ItemsProviderResult<TItem>(Array.Empty<TItem>(), 0);
     }
 
+    /// <summary>
+    /// Loads the first <see cref="PageSize"/> items when <see cref="Virtualize"/> is false.
+    /// </summary>
+    private async Task LoadPageAsync(bool preserveHighlight)
+    {
+        CancelLoad();
+        var cts = new CancellationTokenSource();
+        _loadCts = cts;
+        var token = cts.Token;
+
+        var hadHighlightedItem = preserveHighlight && HasHighlightedItem;
+        var previouslyHighlighted = hadHighlightedItem ? _visibleItems[_highlightedIndex] : default;
+
+        IsLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            List<TItem> items;
+            if (DataProvider is not null)
+            {
+                var result = await DataProvider(new ComboState(_searchText, PageSize, 0), token);
+                items = result.Items.ToList();
+            }
+            else
+            {
+                items = FilterStaticData(_searchText).Take(PageSize).ToList();
+            }
+
+            if (token.IsCancellationRequested)
+                return;
+
+            _visibleItems = items;
+            _groups = BuildGroups(items);
+            _totalItemCount = items.Count;
+
+            if (hadHighlightedItem)
+                _highlightedIndex = _visibleItems.FindIndex(item => ItemEquals(item, previouslyHighlighted));
+
+            EnsureHighlightedItemIsEnabled();
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            // A newer load (or closing the dropdown) owns the loading state now.
+            if (_loadCts == cts)
+            {
+                _loadCts = null;
+                cts.Dispose();
+                IsLoading = false;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+
+    private List<TItem> FilterStaticData(string search)
+    {
+        return string.IsNullOrEmpty(search)
+            ? StaticData!
+            : StaticData!.Where(item => ItemMatches(item, search)).ToList();
+    }
+
+    private List<ItemGroup> BuildGroups(List<TItem> items)
+    {
+        if (GroupBy is null)
+            return [];
+
+        var groups = new List<ItemGroup>();
+        var start = 0;
+        for (var index = 1; index <= items.Count; index++)
+        {
+            if (index < items.Count && GroupBy(items[index]) == GroupBy(items[start]))
+                continue;
+
+            var key = GroupBy(items[start]);
+            var groupItems = items.GetRange(start, index - start);
+            groups.Add(new ItemGroup($"{_listboxId}-group-{groups.Count}", start, new ComboGroupContext<TItem>(key, groupItems)));
+            start = index;
+        }
+
+        return groups;
+    }
 
     private bool ItemMatches(TItem item, string search)
     {
@@ -416,7 +790,7 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
     private bool IsHighlighted(TItem item)
     {
-        if (_highlightedIndex < 0 || _highlightedIndex >= _visibleItems.Count)
+        if (!HasHighlightedItem)
             return false;
 
         var highlighted = _visibleItems[_highlightedIndex];
@@ -428,11 +802,11 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         return ItemDisabledFunc?.Invoke(item) == true;
     }
 
-    private string GetItemClasses(TItem item)
+    private string GetItemClasses(TItem item, bool highlighted)
     {
         return new ClassBuilder()
             .AddClass("combo-item")
-            .AddClass("highlighted", IsHighlighted(item))
+            .AddClass("highlighted", highlighted)
             .AddClass("combo-item-disabled", IsItemDisabled(item))
             .Build();
     }
@@ -443,6 +817,10 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         var hash = unchecked((uint)itemString.GetHashCode(StringComparison.Ordinal));
         return $"{_listboxId}-option-{hash}";
     }
+
+    // Without virtualization every row is rendered, so its position is a stable, unique id
+    // (two groups may well contain items with the same text).
+    private string GetOptionId(int index) => $"{_listboxId}-option-{index}";
 
     private async Task HandleTriggerKeyDown(KeyboardEventArgs e)
     {
@@ -480,55 +858,166 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
             return;
         }
 
-        if (_visibleItems.Count == 0)
+        await HandleListKeyDownAsync(e);
+    }
+
+    private async Task HandleSearchInputKeyDown(KeyboardEventArgs e)
+    {
+        if (Disabled)
             return;
 
-        if (e.Key == "ArrowDown")
+        switch (e.Key)
         {
-            MoveHighlight(1);
-            StateHasChanged();
-            await ScrollHighlightedItemIntoView();
+            case "Escape":
+                // Focus is already in the input, which is where it should stay.
+                await CloseDropdownAsync(false);
+                break;
+            case "Tab":
+                await CloseDropdownAsync(false);
+                break;
+            case "ArrowDown" or "ArrowUp" when !IsOpen:
+                await OpenDropdownAsync();
+                break;
+            case "Enter" when !IsOpen:
+                if (IsAddOptionVisible)
+                    await AddClicked(_searchText);
+                break;
+            default:
+                if (IsOpen)
+                    await HandleListKeyDownAsync(e);
+                break;
         }
-        else if (e.Key == "ArrowUp")
+    }
+
+    /// <summary>
+    /// Arrow and Enter handling shared by the in-dropdown search input and the trigger input.
+    /// </summary>
+    private async Task HandleListKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key is "ArrowDown" or "ArrowUp")
         {
-            MoveHighlight(-1);
+            MoveHighlight(e.Key == "ArrowDown" ? 1 : -1);
             StateHasChanged();
             await ScrollHighlightedItemIntoView();
         }
         else if (e.Key == "Enter")
         {
-            if (_highlightedIndex >= 0 && _highlightedIndex < _visibleItems.Count && !IsItemDisabled(_visibleItems[_highlightedIndex]))
-            {
-                _skipNextToggle = true;
-                await ItemClicked(_visibleItems[_highlightedIndex]);
-            }
+            await SubmitHighlightedAsync();
         }
     }
 
+    private async Task SubmitHighlightedAsync()
+    {
+        if (_addOptionHighlighted)
+        {
+            if (IsAddOptionVisible)
+                await SubmitAddOptionAsync();
+            return;
+        }
+
+        if (HasHighlightedItem)
+        {
+            var item = _visibleItems[_highlightedIndex];
+            if (IsItemDisabled(item))
+                return;
+
+            if (!SearchInTrigger)
+                _skipNextToggle = true;
+            await ItemClicked(item);
+            return;
+        }
+
+        // Nothing highlighted: Enter submits the typed text.
+        if (IsAddOptionVisible)
+            await SubmitAddOptionAsync();
+    }
+
+    private async Task SubmitAddOptionAsync()
+    {
+        if (!SearchInTrigger)
+            _skipNextToggle = true;
+        await AddClicked(_searchText);
+    }
+
+    private void ResetHighlight()
+    {
+        _addOptionHighlighted = false;
+        _highlightedIndex = HighlightFirstItem ? 0 : -1;
+    }
+
+    /// <summary>
+    /// Moves the highlight over enabled items, plus the add option row when it is visible.
+    /// Group headers and footers are not part of <see cref="_visibleItems"/>, so they are never highlighted.
+    /// </summary>
     private void MoveHighlight(int offset)
     {
-        if (_visibleItems.Count == 0)
-            return;
+        var step = offset < 0 ? -1 : 1;
+        var addVisible = IsAddOptionVisible;
+        var addOnTop = AddOptionPosition == AddOptionPosition.Top;
 
-        var startIndex = _highlightedIndex < 0 ? (offset > 0 ? 0 : _visibleItems.Count - 1) : _highlightedIndex + offset;
-        _highlightedIndex = FindNextEnabledIndex(startIndex, offset);
+        if (_addOptionHighlighted)
+        {
+            // From the add option, only moving towards the list goes anywhere.
+            if (addOnTop == step > 0)
+            {
+                var next = addOnTop ? FindEnabledIndex(0, 1) : FindEnabledIndex(_visibleItems.Count - 1, -1);
+                if (next >= 0)
+                {
+                    _addOptionHighlighted = false;
+                    _highlightedIndex = next;
+                }
+            }
+
+            return;
+        }
+
+        if (!HasHighlightedItem)
+        {
+            if (addVisible && step < 0 && !addOnTop)
+            {
+                HighlightAddOption();
+                return;
+            }
+
+            var first = step > 0 ? FindEnabledIndex(0, 1) : FindEnabledIndex(_visibleItems.Count - 1, -1);
+            if (first >= 0)
+                _highlightedIndex = first;
+            else if (addVisible)
+                HighlightAddOption();
+            return;
+        }
+
+        var nextIndex = FindEnabledIndex(_highlightedIndex + step, step);
+        if (nextIndex >= 0)
+            _highlightedIndex = nextIndex;
+        else if (addVisible && addOnTop == step < 0)
+            HighlightAddOption();
+    }
+
+    private void HighlightAddOption()
+    {
+        _addOptionHighlighted = true;
+        _highlightedIndex = -1;
     }
 
     private void EnsureHighlightedItemIsEnabled()
     {
-        if (_highlightedIndex >= 0 && _highlightedIndex < _visibleItems.Count && !IsItemDisabled(_visibleItems[_highlightedIndex]))
+        if (_addOptionHighlighted)
             return;
 
-        _highlightedIndex = FindNextEnabledIndex(0, 1);
+        if (HasHighlightedItem && !IsItemDisabled(_visibleItems[_highlightedIndex]))
+            return;
+
+        _highlightedIndex = HighlightFirstItem ? FindEnabledIndex(0, 1) : -1;
     }
 
-    private int FindNextEnabledIndex(int startIndex, int offset)
+    /// <summary>
+    /// Returns the first enabled index from <paramref name="startIndex"/> in the direction of
+    /// <paramref name="step"/>, or -1 when the end of the list is reached.
+    /// </summary>
+    private int FindEnabledIndex(int startIndex, int step)
     {
-        if (_visibleItems.Count == 0)
-            return -1;
-
-        var step = offset < 0 ? -1 : 1;
-        for (var index = Math.Clamp(startIndex, 0, _visibleItems.Count - 1); index >= 0 && index < _visibleItems.Count; index += step)
+        for (var index = startIndex; index >= 0 && index < _visibleItems.Count; index += step)
         {
             if (!IsItemDisabled(_visibleItems[index]))
                 return index;
@@ -550,9 +1039,24 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         if (IsItemDisabled(item))
             return;
 
-        Value = item;
+        CancelDebounce();
+
+        if (ClearOnSelect)
+            _searchText = "";
+        else
+        {
+            Value = item;
+            if (SearchInTrigger)
+                _searchText = GetItemString(item);
+        }
+
+        // Closing reports the new search text through SearchTextChanged.
         await CloseDropdownAsync(true);
-        await ValueChanged.InvokeAsync(item);
+
+        if (!ClearOnSelect)
+            await ValueChanged.InvokeAsync(item);
+
+        await OnItemSelected.InvokeAsync(item);
     }
 
     private async Task AddClicked(string newItem)
@@ -563,6 +1067,41 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
         await AddOptionChanged.InvokeAsync(normalized);
         await CloseDropdownAsync(true);
+    }
+
+    private async Task OnSearchInputFocus()
+    {
+        _inputFocused = true;
+
+        if (_suppressFocusOpen)
+        {
+            _suppressFocusOpen = false;
+            return;
+        }
+
+        if (!IsOpen && !Disabled && !string.IsNullOrEmpty(_searchText))
+            await OpenDropdownAsync();
+    }
+
+    private void OnSearchInputBlur()
+    {
+        _inputFocused = false;
+    }
+
+    private async Task OnSearchInputClick()
+    {
+        // Reopens after Escape without having to leave the input first.
+        if (!IsOpen && _inputFocused && !Disabled && !string.IsNullOrEmpty(_searchText))
+            await OpenDropdownAsync();
+    }
+
+    private async Task ClearSearch()
+    {
+        CancelDebounce();
+        _searchText = "";
+        ResetHighlight();
+        await CloseDropdownAsync(false);
+        await _inputRef.FocusAsync();
     }
 
     [JSInvokable] public async Task CloseDropdown()
@@ -595,16 +1134,12 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        if (_debounceCts is not null)
-        {
-            _debounceCts.Cancel();
-            _debounceCts.Dispose();
-        }
+        CancelDebounce();
+        CancelLoad();
 
         await RemoveOutsideClickListener();
 
         _dotNetObjectReference = null;
-        _debounceCts = null;
         _outsideClickListener = null;
         _virtualizeRef = null;
 
@@ -623,4 +1158,6 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
             }
         }
     }
+
+    private sealed record ItemGroup(string HeaderId, int StartIndex, ComboGroupContext<TItem> Context);
 }

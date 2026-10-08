@@ -203,6 +203,90 @@
 }
 
 
+/* Search-in-trigger mode: the trigger is a text input */
+.combo-trigger-search {
+    cursor: text;
+    gap: 8px;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.combo-trigger-search:focus-within {
+    border-color: var(--primary-600);
+}
+
+.combo-trigger-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 9px 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    line-height: 1.2;
+}
+
+.combo-trigger-input::placeholder {
+    color: inherit;
+    opacity: 0.4;
+}
+
+.combo-clear {
+    flex: 0 0 auto;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    opacity: 0.6;
+    cursor: pointer;
+}
+
+.combo-clear:hover {
+    opacity: 1;
+}
+
+/* Add option: keyboard highlight and bottom placement */
+.add-button.highlighted {
+    background-color: var(--primary-100, #dbf0f0);
+}
+
+.add-button-bottom {
+    border-bottom: none;
+    border-top: 1px solid var(--border-primary);
+}
+
+/* Groups (GroupBy) */
+.combo-group + .combo-group {
+    border-top: 1px solid var(--border-primary);
+}
+
+.combo-group-header {
+    padding: 8px 8px 4px;
+    font-size: 12px;
+    font-weight: 600;
+    opacity: 0.7;
+    cursor: default;
+}
+
+.combo-group-header-text {
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.combo-group-footer {
+    padding: 2px 8px 8px;
+}
+
+/* FooterTemplate: static content below the results */
+.combo-footer {
+    flex-shrink: 0;
+    padding: 8px 12px;
+    border-top: 1px solid var(--border-primary);
+    font-size: 12px;
+    opacity: 0.7;
+}
+
 .combo-search-input {
     border: none;
     font-size: 14px;

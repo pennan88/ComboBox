@@ -12,6 +12,8 @@
     <Nullable>enable</Nullable>
     <RootNamespace>ComboBox</RootNamespace>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- The test project lives below this folder; keep it out of the library. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);Tests/**</DefaultItemExcludes>
   </PropertyGroup>
 
 
@@ -21,6 +23,10 @@
 
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ComboBox.Tests" />
   </ItemGroup>
 
   <ItemGroup>
