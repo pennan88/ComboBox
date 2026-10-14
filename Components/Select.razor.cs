@@ -23,6 +23,32 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
     [Parameter]
     public EventCallback<TItem?> ValueChanged { get; set; }
 
+    /// <summary>
+    /// When true several items can be selected: a pick toggles the item in <see cref="Values"/>
+    /// and the dropdown stays open. <see cref="Value"/> is not used.
+    /// </summary>
+    [Parameter]
+    public bool MultiSelect { get; set; }
+
+    /// <summary>
+    /// The selected items when <see cref="MultiSelect"/> is true, in the order they were picked.
+    /// </summary>
+    [Parameter]
+    public IReadOnlyList<TItem>? Values { get; set; }
+
+    /// <summary>
+    /// Invoked with a new list each time an item is toggled when <see cref="MultiSelect"/> is true.
+    /// </summary>
+    [Parameter]
+    public EventCallback<IReadOnlyList<TItem>> ValuesChanged { get; set; }
+
+    /// <summary>
+    /// The trigger text when <see cref="MultiSelect"/> is true and something is selected.
+    /// Defaults to the selected items joined with commas, using <see cref="ToStringFunc"/>.
+    /// </summary>
+    [Parameter]
+    public Func<IReadOnlyList<TItem>, string>? MultiSelectionTextFunc { get; set; }
+
     [Parameter]
     public IEnumerable<TItem>? Items { get; set; }
 
@@ -129,14 +155,29 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
         if (Items is not null)
         {
             ItemsList = Items.ToList();
-            SetHighlightedIndexToSelectedItem();
+
+            // A bound parent re-renders after every toggle; the highlight must stay where the user left it.
+            if (MultiSelect && IsOpen)
+                EnsureHighlightedIndexInRange();
+            else
+                SetHighlightedIndexToSelectedItem();
         }
     }
 
+    private string MultiSelectionText =>
+        Values is null ? "" : MultiSelectionTextFunc?.Invoke(Values) ?? MultiSelection.DefaultText(Values, GetItemString);
+
     private bool IsSelectedItem(TItem item)
     {
+        if (MultiSelect)
+            return MultiSelection.Contains(Values, item, ItemEquals);
+
         return Value is not null && ItemEquals(Value, item);
     }
+
+    // A bool would render as aria-selected="", which assistive technology reads as not selected.
+    // A multi-select listbox marks every option; a single-select one only the selected option.
+    private string? AriaSelected(TItem item) => IsSelectedItem(item) ? "true" : MultiSelect ? "false" : null;
 
     private bool ItemEquals(TItem? left, TItem? right)
     {
@@ -175,11 +216,15 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
         _dotNetObjectReference = DotNetObjectReference.Create(this);
         if (Js is not null)
         {
+            // In multi-select mode the dropdown stays open after a click, so focus must stay on
+            // the trigger for the keyboard to keep working.
             _outsideClickListener = await Js.InvokeAsync<IJSObjectReference>(
                 "comboBoxRegisterOutsideClick",
                 _rootRef,
                 _dotNetObjectReference,
-                PortalId
+                PortalId,
+                MultiSelect,
+                MultiSelect
             );
         }
 
@@ -245,6 +290,12 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
         _highlightedIndex = selectedIndex >= 0 ? selectedIndex : FindNextEnabledIndex(0, 1);
     }
 
+    private void EnsureHighlightedIndexInRange()
+    {
+        if (_highlightedIndex < 0 || _highlightedIndex >= ItemsList.Count || IsItemDisabled(ItemsList[_highlightedIndex]))
+            _highlightedIndex = FindNextEnabledIndex(0, 1);
+    }
+
     private bool IsHighlighted(TItem item)
     {
         if (_highlightedIndex < 0 || _highlightedIndex >= ItemsList.Count)
@@ -297,9 +348,20 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
         {
             if (_highlightedIndex >= 0 && _highlightedIndex < ItemsList.Count && !IsItemDisabled(ItemsList[_highlightedIndex]))
             {
+                // Enter also clicks the trigger button, which would toggle the dropdown.
                 _skipNextToggle = true;
                 await ItemClicked(ItemsList[_highlightedIndex]);
             }
+        }
+        else if (e.Key == " " && IsOpen && MultiSelect)
+        {
+            // combobox.js cancels the keydown, so Space does not click the trigger here.
+            if (_highlightedIndex >= 0 && _highlightedIndex < ItemsList.Count)
+                await ItemClicked(ItemsList[_highlightedIndex]);
+        }
+        else if (e.Key == "Tab" && IsOpen && MultiSelect)
+        {
+            await CloseDropdownAsync(false);
         }
     }
 
@@ -337,6 +399,15 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
     {
         if (IsItemDisabled(item))
             return;
+
+        if (MultiSelect)
+        {
+            // The dropdown stays open so several items can be toggled in a row.
+            var updated = MultiSelection.Toggle(Values, item, ItemEquals);
+            Values = updated;
+            await ValuesChanged.InvokeAsync(updated);
+            return;
+        }
 
         Value = item;
         await CloseDropdownAsync(true);

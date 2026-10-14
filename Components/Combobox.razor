@@ -57,7 +57,13 @@
                 aria-label="@TriggerAriaLabel"
                 @onclick="ToggleDropdown"
                 @onkeydown="HandleTriggerKeyDown">
-            @if (Value is not null)
+            @if (MultiSelect && Values is { Count: > 0 })
+            {
+                <span class="combo-trigger-content">
+                    <span class="combo-value">@MultiSelectionText</span>
+                </span>
+            }
+            else if (!MultiSelect && Value is not null)
             {
                 if (SelectedTemplate is not null)
                 {
@@ -125,7 +131,7 @@
                     </div>
                 }
 
-                <div class="combo-content-container" id="@_listboxId" role="listbox">
+                <div class="combo-content-container" id="@_listboxId" role="listbox" aria-multiselectable="@(MultiSelect ? "true" : null)">
                     @if (IsAddOptionVisible && AddOptionPosition == AddOptionPosition.Top)
                     {
                         @AddOptionRow
@@ -233,12 +239,12 @@
 @code {
     // Without virtualization there is no fixed row height to keep aligned, so the empty
     // checkmark column is dropped when no item can ever show a checkmark.
-    private bool ReserveCheckmarkSpace => ShowCheckmarkInList && !ClearOnSelect;
+    private bool ReserveCheckmarkSpace => ShowCheckmarkInList && (MultiSelect || !ClearOnSelect);
 
     private RenderFragment ItemRow(TItem item, string optionId, bool highlighted, string? style, bool reserveCheckmarkSpace) =>
         @<div id="@optionId"
               role="option"
-              aria-selected="@IsSelectedItem(item)"
+              aria-selected="@AriaSelected(item)"
               aria-disabled="@IsItemDisabled(item)"
               style="@style"
               class="@GetItemClasses(item, highlighted)"

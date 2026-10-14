@@ -1,0 +1,25 @@
+@* The README's multi-select example: both components bound with @bind-Values. *@
+
+<Select TItem="string"
+        Items="Fruits"
+        MultiSelect="true"
+        @bind-Values="SelectedFruits"
+        Placeholder="Choose fruits..." />
+
+<Combobox TItem="SearchResult"
+          StaticData="Results"
+          Virtualize="false"
+          SearchDebounceMs="0"
+          MultiSelect="true"
+          @bind-Values="SelectedResults"
+          ToStringFunc="@(r => r.Name)"
+          MultiSelectionTextFunc="@(rs => rs.Count == 1 ? rs[0].Name : $"{rs.Count} selected")"
+          Placeholder="Choose results..." />
+
+@code {
+    private List<string> Fruits = ["Apple", "Banana", "Cherry"];
+    private List<SearchResult> Results = SearchResult.All.ToList();
+
+    public IReadOnlyList<string> SelectedFruits { get; private set; } = [];
+    public IReadOnlyList<SearchResult> SelectedResults { get; private set; } = [];
+}

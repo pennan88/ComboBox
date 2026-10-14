@@ -1,4 +1,4 @@
-window.comboBoxRegisterOutsideClick = (element, dotNetHelper, portalId, keepFocusOnMouseDown) => {
+window.comboBoxRegisterOutsideClick = (element, dotNetHelper, portalId, keepFocusOnMouseDown, multiSelect) => {
     let lastTouchY = null;
     const scrollKeys = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown']);
 
@@ -87,6 +87,23 @@ window.comboBoxRegisterOutsideClick = (element, dotNetHelper, portalId, keepFocu
         e.preventDefault();
     }
 
+    // In multi-select mode Space toggles the highlighted option (handled in C#). Its default
+    // action has to go: on the Select trigger it would click the button and close the dropdown,
+    // and in the empty search input it would type a space and start a search.
+    function cancelToggleSpace(e) {
+        const portal = getPortal();
+        if (e.key !== ' ' || !portal || !(e.target instanceof Element)) {
+            return;
+        }
+
+        const onSelectTrigger = !!element && element.contains(e.target) && e.target.matches('.select-trigger');
+        const inEmptySearch = portal.contains(e.target) && e.target.matches('.combo-search-input') && e.target.value === '';
+
+        if (onSelectTrigger || inEmptySearch) {
+            e.preventDefault();
+        }
+    }
+
     function onTouchStart(e) {
         if (e.touches.length > 0) {
             lastTouchY = e.touches[0].clientY;
@@ -117,6 +134,9 @@ window.comboBoxRegisterOutsideClick = (element, dotNetHelper, portalId, keepFocu
     }
     document.addEventListener("wheel", blockOverlayWheel, { passive: false });
     document.addEventListener("keydown", blockOverlayKeyDown);
+    if (multiSelect) {
+        document.addEventListener("keydown", cancelToggleSpace);
+    }
     document.addEventListener("touchstart", onTouchStart, { passive: true });
     document.addEventListener("touchmove", blockOverlayTouchMove, { passive: false });
     document.addEventListener("touchend", onTouchEnd, { passive: true });
@@ -128,6 +148,7 @@ window.comboBoxRegisterOutsideClick = (element, dotNetHelper, portalId, keepFocu
             document.removeEventListener("mousedown", keepFocus);
             document.removeEventListener("wheel", blockOverlayWheel);
             document.removeEventListener("keydown", blockOverlayKeyDown);
+            document.removeEventListener("keydown", cancelToggleSpace);
             document.removeEventListener("touchstart", onTouchStart);
             document.removeEventListener("touchmove", blockOverlayTouchMove);
             document.removeEventListener("touchend", onTouchEnd);

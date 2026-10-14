@@ -17,7 +17,13 @@
             aria-label="@TriggerAriaLabel"
             @onclick="ToggleDropdown"
             @onkeydown="HandleTriggerKeyDown">
-        @if (Value is not null)
+        @if (MultiSelect && Values is { Count: > 0 })
+        {
+            <span class="combo-trigger-content">
+                <span class="combo-value">@MultiSelectionText</span>
+            </span>
+        }
+        else if (!MultiSelect && Value is not null)
         {
             if (SelectedTemplate is not null)
             {
@@ -49,7 +55,7 @@
         <Portal Show="IsOpen" TriggerElementId="@_triggerId" Id="@PortalId" Width="@DropdownWidth" AnchorPosition="@AnchorPosition" MeasureClass="@DropdownClasses">
             <div class="combo-overlay" @onclick="CloseDropdown"></div>
             <div class="@DropdownClasses" @onmousedown:preventDefault>
-                <div class="combo-content-container" id="@_listboxId" role="listbox">
+                <div class="combo-content-container" id="@_listboxId" role="listbox" aria-multiselectable="@(MultiSelect ? "true" : null)">
                     @if (IsLoading)
                     {
                         <div class="combo-loading">Loading...</div>
@@ -74,7 +80,7 @@
                         {
                             <div id="@GetOptionId(item)"
                                  role="option"
-                                 aria-selected="@IsSelectedItem(item)"
+                                 aria-selected="@AriaSelected(item)"
                                  aria-disabled="@IsItemDisabled(item)"
                                  class="@GetItemClasses(item)"
                                  @onclick="@(() => ItemClicked(item))">

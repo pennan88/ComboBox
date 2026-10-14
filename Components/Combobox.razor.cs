@@ -30,6 +30,33 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     public EventCallback<TItem?> ValueChanged { get; set; }
 
     /// <summary>
+    /// When true several items can be selected: a pick toggles the item in <see cref="Values"/>
+    /// and the dropdown stays open. <see cref="Value"/> is not used. Not supported together with
+    /// <see cref="SearchInTrigger"/>.
+    /// </summary>
+    [Parameter]
+    public bool MultiSelect { get; set; }
+
+    /// <summary>
+    /// The selected items when <see cref="MultiSelect"/> is true, in the order they were picked.
+    /// </summary>
+    [Parameter]
+    public IReadOnlyList<TItem>? Values { get; set; }
+
+    /// <summary>
+    /// Invoked with a new list each time an item is toggled when <see cref="MultiSelect"/> is true.
+    /// </summary>
+    [Parameter]
+    public EventCallback<IReadOnlyList<TItem>> ValuesChanged { get; set; }
+
+    /// <summary>
+    /// The trigger text when <see cref="MultiSelect"/> is true and something is selected.
+    /// Defaults to the selected items joined with commas, using <see cref="ToStringFunc"/>.
+    /// </summary>
+    [Parameter]
+    public Func<IReadOnlyList<TItem>, string>? MultiSelectionTextFunc { get; set; }
+
+    /// <summary>
     /// Callback invoked with the current search text when the add option is picked
     /// (by click, by Enter on the highlighted add row, or by Enter with nothing highlighted).
     /// </summary>
@@ -220,13 +247,15 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
     /// <summary>
     /// Invoked on every pick (click or Enter), in addition to <see cref="ValueChanged"/>.
+    /// With <see cref="MultiSelect"/> it is invoked on every toggle, in or out.
     /// </summary>
     [Parameter]
     public EventCallback<TItem> OnItemSelected { get; set; }
 
     /// <summary>
     /// When true a pick does not set <see cref="Value"/>: the dropdown closes and the search text is cleared.
-    /// Use it together with <see cref="OnItemSelected"/>.
+    /// Use it together with <see cref="OnItemSelected"/>. With <see cref="MultiSelect"/> a pick still
+    /// toggles <see cref="Values"/> and the dropdown stays open; only the search text is cleared.
     /// </summary>
     [Parameter]
     public bool ClearOnSelect { get; set; }
@@ -376,6 +405,9 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         if (GroupBy is not null && Virtualize)
             throw new InvalidOperationException("GroupBy is only supported when Virtualize is false.");
 
+        if (MultiSelect && SearchInTrigger)
+            throw new InvalidOperationException("MultiSelect is not supported when SearchInTrigger is true.");
+
         if (SearchText != _lastSearchTextParameter)
         {
             _lastSearchTextParameter = SearchText;
@@ -426,10 +458,21 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         }
     });
 
+    private string MultiSelectionText =>
+        Values is null ? "" : MultiSelectionTextFunc?.Invoke(Values) ?? MultiSelection.DefaultText(Values, GetItemString);
+
+    // Checked against Values rather than the loaded rows, so it holds for any page Virtualize fetches.
     private bool IsSelectedItem(TItem item)
     {
+        if (MultiSelect)
+            return MultiSelection.Contains(Values, item, ItemEquals);
+
         return Value is not null && ItemEquals(Value, item);
     }
+
+    // A bool would render as aria-selected="", which assistive technology reads as not selected.
+    // A multi-select listbox marks every option; a single-select one only the selected option.
+    private string? AriaSelected(TItem item) => IsSelectedItem(item) ? "true" : MultiSelect ? "false" : null;
 
     private bool ItemEquals(TItem? left, TItem? right)
     {
@@ -488,12 +531,14 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         _dotNetObjectReference = DotNetObjectReference.Create(this);
         if (Js != null)
         {
+            // A multi-select pick leaves the dropdown open, so the search input must keep focus.
             _outsideClickListener = await Js.InvokeAsync<IJSObjectReference>(
                 "comboBoxRegisterOutsideClick",
                 _rootRef,
                 _dotNetObjectReference,
                 PortalId,
-                SearchInTrigger
+                SearchInTrigger || MultiSelect,
+                MultiSelect
             );
         }
 
@@ -857,10 +902,19 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         if (Disabled)
             return;
 
-        if (e.Key == "Escape")
+        if (e.Key == "Escape" || (e.Key == "Tab" && MultiSelect))
         {
             await CloseDropdownAsync(true);
             StateHasChanged();
+            return;
+        }
+
+        // Space toggles only while nothing is typed; after that it is part of the search text.
+        // combobox.js cancels the keydown in the same case, so no space ends up in the input.
+        if (e.Key == " " && MultiSelect && string.IsNullOrEmpty(_searchText))
+        {
+            if (HasHighlightedItem)
+                await ItemClicked(_visibleItems[_highlightedIndex]);
             return;
         }
 
@@ -927,7 +981,9 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
             if (IsItemDisabled(item))
                 return;
 
-            if (!SearchInTrigger)
+            // Closing moves focus to the trigger button, which the Enter then clicks. A
+            // multi-select pick keeps the dropdown open and focus in the search input.
+            if (!SearchInTrigger && !MultiSelect)
                 _skipNextToggle = true;
             await ItemClicked(item);
             return;
@@ -1045,6 +1101,12 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         if (IsItemDisabled(item))
             return;
 
+        if (MultiSelect)
+        {
+            await ToggleItemAsync(item);
+            return;
+        }
+
         CancelDebounce();
 
         if (ClearOnSelect)
@@ -1062,6 +1124,29 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         if (!ClearOnSelect)
             await ValueChanged.InvokeAsync(item);
 
+        await OnItemSelected.InvokeAsync(item);
+    }
+
+    /// <summary>
+    /// A pick in multi-select mode: toggles the item in <see cref="Values"/> and leaves the dropdown open.
+    /// </summary>
+    private async Task ToggleItemAsync(TItem item)
+    {
+        var updated = MultiSelection.Toggle(Values, item, ItemEquals);
+        Values = updated;
+
+        if (ClearOnSelect && !string.IsNullOrEmpty(_searchText))
+        {
+            CancelDebounce();
+            _searchText = "";
+            _totalItemCount = -1;
+            _hasRenderedItems = false;
+            ResetHighlight();
+            await NotifySearchTextAsync();
+            await RefreshItems();
+        }
+
+        await ValuesChanged.InvokeAsync(updated);
         await OnItemSelected.InvokeAsync(item);
     }
 

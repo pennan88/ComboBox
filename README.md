@@ -15,6 +15,7 @@ Create a modern dropdown input for Blazor apps that supports:
 - Customizable "no results" message with access to the search term
 - Closes automatically when clicking outside
 - Optional "search box mode": type directly in the field, grouped results, Enter submits free text
+- Optional multi-select: pick several items, the dropdown stays open between picks
 
 ## ✅ Use Cases
 
@@ -288,6 +289,48 @@ loading row. `FooterTemplate`, `GroupFooterTemplate` and `NoResultsTemplate` app
 has returned. Later reloads (typing more, `RefreshAsync()`) keep the current results on screen and show a
 thin progress bar at the top of the dropdown instead. Screen readers hear "Loading results" either way.
 
+### Multi-Select
+
+Both `<Select>` and `<Combobox>` take `MultiSelect="true"`. Bind `Values` instead of `Value`: a pick
+toggles the item in or out of the list, and the dropdown stays open for the next one.
+
+```razor
+<Select TItem="string"
+        Items="Fruits"
+        MultiSelect="true"
+        @bind-Values="SelectedFruits"
+        Placeholder="Choose fruits..." />
+
+<Combobox TItem="User"
+          DataProvider="LoadUsers"
+          MultiSelect="true"
+          @bind-Values="SelectedUsers"
+          ToStringFunc="@(u => u.Name)"
+          MultiSelectionTextFunc="@(users => users.Count == 1 ? users[0].Name : $"{users.Count} users")"
+          Placeholder="Choose users..." />
+```
+
+```csharp
+@code {
+    private List<string> Fruits = ["Apple", "Banana", "Cherry"];
+    private IReadOnlyList<string> SelectedFruits = [];
+    private IReadOnlyList<User> SelectedUsers = [];
+}
+```
+
+Notes:
+
+- `Values` keeps the order the items were picked in. `ValuesChanged` gets a new list on every toggle.
+- The trigger shows `Placeholder` while nothing is selected, otherwise `MultiSelectionTextFunc`
+  (default: the items joined with `", "` through `ToStringFunc`) on one line with an ellipsis.
+  `SelectedTemplate` is not used.
+- Checkmarks and `aria-selected` come from `Values`, so they are right on every page a
+  `DataProvider` returns, also with virtualization.
+- The dropdown closes on `Escape`, `Tab` or a click outside it.
+- `Combobox`: the search works as usual and keeps focus after a pick. `ClearOnSelect="true"` clears the
+  search text after each pick but still toggles `Values`. `OnItemSelected` fires on every toggle, in or out.
+- `MultiSelect` cannot be combined with `SearchInTrigger`.
+
 ## 🎨 Styling Guidance
 
 - Uses semantic HTML and CSS classes.
@@ -309,6 +352,10 @@ thin progress bar at the top of the dropdown instead. Screen readers hear "Loadi
 |--------------------------|----------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
 | `Value`                  | `TItem?`                                           | The currently selected value.                                                                                            |
 | `ValueChanged`           | `EventCallback<TItem?>`                            | Callback invoked when the selected value changes.                                                                        |
+| `MultiSelect`            | `bool` (default: `false`)                          | Lets several items be selected through `Values`. A pick toggles the item and the dropdown stays open. Also on `<Select>`. |
+| `Values`                 | `IReadOnlyList<TItem>?`                            | The selected items when `MultiSelect` is `true`, in pick order. Bindable with `@bind-Values`.                            |
+| `ValuesChanged`          | `EventCallback<IReadOnlyList<TItem>>`              | Invoked with a new list each time an item is toggled.                                                                    |
+| `MultiSelectionTextFunc` | `Func<IReadOnlyList<TItem>, string>?`              | Trigger text when something is selected. Default: the items joined with `", "` through `ToStringFunc`.                   |
 | `AddOptionChanged`       | `EventCallback<string?>`                           | Callback invoked when the add-option action is clicked (required when `ShowAddOption` is `true`).                      |
 | `Placeholder`            | `string`                                           | Placeholder text displayed when no value is selected.                                                                    |
 | `SearchPlaceholder`      | `string` (default: `"Search..."`)                | Placeholder text displayed in the search input.                                                                          |
@@ -340,8 +387,8 @@ thin progress bar at the top of the dropdown instead. Screen readers hear "Loadi
 | `GroupFooterTemplate`    | `RenderFragment<ComboGroupContext<TItem>>?`        | Template after each group, with `Key` and `Items`. Clicks inside it keep the dropdown open and the focus in the input.   |
 | `Virtualize`             | `bool` (default: `true`)                           | `false` renders the items without virtualization (variable row height) and loads `PageSize` items per search.            |
 | `PageSize`               | `int` (default: `50`)                              | Number of items requested per search when `Virtualize` is `false`.                                                       |
-| `OnItemSelected`         | `EventCallback<TItem>`                             | Invoked on every pick (click or Enter), in addition to `ValueChanged`.                                                   |
-| `ClearOnSelect`          | `bool` (default: `false`)                          | A pick does not set `Value`: the dropdown closes and the search text is cleared. When `false` with `SearchInTrigger`, a pick puts `ToStringFunc(item)` in the input. |
+| `OnItemSelected`         | `EventCallback<TItem>`                             | Invoked on every pick (click or Enter), in addition to `ValueChanged`. With `MultiSelect`, on every toggle.              |
+| `ClearOnSelect`          | `bool` (default: `false`)                          | A pick does not set `Value`: the dropdown closes and the search text is cleared. When `false` with `SearchInTrigger`, a pick puts `ToStringFunc(item)` in the input. With `MultiSelect` a pick still toggles `Values` and the dropdown stays open; only the search text is cleared. |
 | `AddOptionPosition`      | `AddOptionPosition` (default: `Top`)               | Places the add option above (`Top`) or below (`Bottom`) the results.                                                     |
 | `HighlightFirstItem`     | `bool` (default: `true`)                           | `false` leaves nothing highlighted after a search, so Enter submits the add option until an arrow key is pressed.        |
 | `FooterTemplate`         | `RenderFragment?`                                  | Static content at the bottom of the dropdown, below the results (for example keyboard hints).                           |
@@ -360,6 +407,7 @@ thin progress bar at the top of the dropdown instead. Screen readers hear "Loadi
 - `SearchDebounceMs` must be `0` or greater.
 - `GroupBy` requires `Virtualize="false"`.
 - `PageSize` must be greater than `0`.
+- `MultiSelect` cannot be combined with `SearchInTrigger`.
 
 ## ⌨️ Keyboard & Accessibility
 
@@ -368,7 +416,8 @@ thin progress bar at the top of the dropdown instead. Screen readers hear "Loadi
 - With `SearchInTrigger`, the same keys work in the trigger input; `Escape` closes the dropdown and leaves focus in the input, and `Tab` closes it and moves on.
 - Arrow keys skip group headers and footers. The add option row is reachable too: `ArrowUp` from the first item when it is on `Top`, `ArrowDown` from the last item when it is at the `Bottom`.
 - With `ShowAddOption`, `Enter` with nothing highlighted invokes `AddOptionChanged` with the current search text.
-- ARIA roles and attributes are included for combobox semantics (`combobox`, `listbox`, `option`, `aria-expanded`, `aria-controls`, `aria-activedescendant`).
+- With `MultiSelect`, `Enter` and `Space` toggle the highlighted item without closing; `Escape` closes and returns focus to the trigger, and `Tab` closes too. In the `Combobox` search input `Space` toggles only while the search is empty; once you have typed, it is part of the search text.
+- ARIA roles and attributes are included for combobox semantics (`combobox`, `listbox`, `option`, `aria-expanded`, `aria-controls`, `aria-activedescendant`, `aria-selected`, and `aria-multiselectable` with `MultiSelect`).
 - A polite `aria-live` region announces loading and no-results state.
 
 
@@ -382,6 +431,7 @@ thin progress bar at the top of the dropdown instead. Screen readers hear "Loadi
 - Static or server data sources
 - Customizable item and no-results templates
 - Search box mode with grouped results, per-group footers and free-text submit
+- Multi-select with `@bind-Values` on both `Select` and `Combobox`
 - Selected-item checkmark
 
 ## 🏷️ License
