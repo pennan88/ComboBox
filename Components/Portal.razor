@@ -32,6 +32,14 @@
     [Parameter]
     public DropdownAnchorPosition AnchorPosition { get; set; } = DropdownAnchorPosition.Left;
 
+    /// <summary>Minimum width as a CSS length. Setting this or <see cref="MaxWidth"/> resolves the width in pixels and keeps the portal inside the viewport.</summary>
+    [Parameter]
+    public string? MinWidth { get; set; }
+
+    /// <summary>Maximum width as a CSS length. Never shrinks the portal below the trigger width.</summary>
+    [Parameter]
+    public string? MaxWidth { get; set; }
+
     [Parameter, EditorRequired]
     public string Id { get; set; } = null!;
 
@@ -59,9 +67,24 @@
 
             await Task.Delay(1);
 
-            var pos = await JsRuntime.InvokeAsync<Position?>("portalHelper.getPosition", TriggerElementId, Id, MeasureClass);
+            var constrainWidth = !string.IsNullOrWhiteSpace(MinWidth) || !string.IsNullOrWhiteSpace(MaxWidth);
+            var pos = constrainWidth
+                ? await JsRuntime.InvokeAsync<Position?>("portalHelper.getPosition", TriggerElementId, Id, MeasureClass,
+                    new WidthOptions(Width?.Trim(), MinWidth?.Trim(), MaxWidth?.Trim(), AnchorPosition.ToString()))
+                : await JsRuntime.InvokeAsync<Position?>("portalHelper.getPosition", TriggerElementId, Id, MeasureClass);
 
-            if (pos != null)
+            if (pos is { Resolved: true })
+            {
+                // combobox.js already resolved the width, applied the anchor and kept it inside the viewport.
+                _topPx = $"{pos.Top.ToString("F1", CultureInfo.InvariantCulture)}px";
+                _leftPx = $"{pos.Left.ToString("F1", CultureInfo.InvariantCulture)}px";
+                _transform = pos.PlaceAbove ? "translateY(-100%)" : "none";
+                _resolvedWidth = $"{pos.Width.ToString("F1", CultureInfo.InvariantCulture)}px";
+
+                await JsRuntime.InvokeVoidAsync("portalHelper.appendToBody", Id);
+                _wasAppended = true;
+            }
+            else if (pos != null)
             {
                 _topPx = $"{pos.Top.ToString("F1", CultureInfo.InvariantCulture)}px";
                 _leftPx = AnchorPosition switch
@@ -105,7 +128,12 @@
         public double Left { get; init; }
         public double Width { get; init; }
         public bool PlaceAbove { get; init; }
+
+        /// <summary>True when Left and Width are final (width constraints were passed).</summary>
+        public bool Resolved { get; init; }
     }
+
+    internal sealed record WidthOptions(string? Extra, string? MinWidth, string? MaxWidth, string Anchor);
 
     public void Dispose()
     {

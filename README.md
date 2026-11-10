@@ -331,6 +331,143 @@ Notes:
   search text after each pick but still toggles `Values`. `OnItemSelected` fires on every toggle, in or out.
 - `MultiSelect` cannot be combined with `SearchInTrigger`.
 
+### Rich Rows: `ItemContentTemplate`
+
+`ItemContentTemplate` gets a `ComboItemContext<TItem>` with `Item`, `IsSelected`, `IsHighlighted`,
+`IsDisabled` and `SearchText` (the search the shown results were loaded for). It takes precedence over
+`ItemTemplate`, which keeps working unchanged. `SplitByMatch(text)` splits a text around the search
+matches so they can be marked. With `Virtualize="true"` the row keeps the fixed height `ItemSize`.
+
+```razor
+<Combobox TItem="User" DataProvider="LoadUsers" MultiSelect="true" @bind-Values="SelectedUsers"
+          ShowCheckmarkInList="false" ToStringFunc="@(u => u.Name)">
+    <ItemContentTemplate Context="row">
+        <input type="checkbox" checked="@row.IsSelected" disabled="@row.IsDisabled" tabindex="-1" aria-hidden="true" />
+        <span>
+            @foreach (var part in row.SplitByMatch(row.Item.Name))
+            {
+                @if (part.IsMatch) { <mark>@part.Text</mark> } else { @part.Text }
+            }
+            <small>@row.Item.Email</small>
+        </span>
+    </ItemContentTemplate>
+</Combobox>
+```
+
+With `ShowCheckmarkInList="false"` and `ItemContentTemplate` no checkmark column is reserved, so the
+template owns the whole row (for example its own checkbox).
+
+### Clear Button, Loading Spinner and Start Content
+
+```razor
+<Select TItem="User" Items="Users" @bind-Value="Owner" ToStringFunc="@(u => u.Name)"
+        Clearable="true" ClearButtonAriaLabel="Rensa val" OnClear="OwnerCleared"
+        Loading="@savingOwner">
+    <StartContent><img class="avatar" src="@Owner?.AvatarUrl" alt="" /></StartContent>
+</Select>
+```
+
+- `Clearable` shows an × button (16 px) 8 px left of the chevron while there is a value (`Value` or
+  `Values`). It is a sibling of the trigger button, not nested in it: both sit in
+  `.combo-trigger-wrapper`, and the clear button is laid over a `.combo-clear-spacer` inside the trigger.
+  A click resets `Value`/`Values`, invokes `OnClear` and focuses the trigger. If you change the trigger's
+  right padding or the chevron size, set `--combo-clear-offset` (default `36px` = 12 px padding + 16 px chevron + 8 px).
+  With `SearchInTrigger` the existing × in the input is used; with `Clearable` it also resets `Value`.
+- `Loading` adds a 16 px spinner (`.combo-spinner`) next to the chevron and `aria-busy="true"`. The
+  chevron stays and the trigger stays usable.
+- `StartContent` is rendered first in the trigger (`.combo-start-content`, 8 px to the text), also when
+  nothing is selected. It sits inside a `<button>`, so it must not contain interactive elements.
+
+### Closing From a Footer: `CloseAsync()`
+
+```razor
+<Combobox @ref="_users" TItem="User" DataProvider="LoadUsers" MultiSelect="true" @bind-Values="SelectedUsers">
+    <FooterTemplate>
+        <button type="button" @onclick="() => _users!.CloseAsync()">Klar</button>
+    </FooterTemplate>
+</Combobox>
+```
+
+`CloseAsync()` closes the dropdown and returns focus to the trigger. `<Select>` has `FooterTemplate` and `CloseAsync()` too.
+
+### Errors From the DataProvider
+
+When the `DataProvider` throws, the dropdown shows `ErrorTemplate` (or a row with `ErrorText`) instead of
+the results, and the error is announced. The context has the `Exception` and `Retry`, which calls
+`RefreshAsync()`. A cancellation of the component's own token (a newer search, closing) is not an error.
+An `OperationCanceledException` on a token the component did *not* cancel, such as an `HttpClient`
+timeout, is shown as an error.
+
+```razor
+<Combobox TItem="User" DataProvider="LoadUsers" @bind-Value="SelectedUser" ErrorText="Kunde inte hämta användare.">
+    <ErrorTemplate Context="error">
+        <div class="error-row">
+            Kunde inte hämta användare.
+            <button type="button" @onclick="error.Retry">Försök igen</button>
+        </div>
+    </ErrorTemplate>
+</Combobox>
+```
+
+### Localized Texts
+
+```razor
+<Combobox TItem="User" DataProvider="LoadUsers" @bind-Value="SelectedUser"
+          SearchPlaceholder="Sök ..."
+          LoadingText="Söker ..."
+          LoadingAnnouncementText="Laddar resultat"
+          NoResultsText="Inga träffar"
+          ErrorText="Något gick fel"
+          ResultCountTextFunc="@(n => n == 1 ? "1 träff" : $"{n} träffar")" />
+```
+
+- `LoadingText` replaces the progress dots in the first-load row with a spinner and the text.
+  `LoadingTemplate` replaces the row's content entirely. Without either the row shows the dots as before.
+- The polite live region announces `LoadingAnnouncementText`, `ErrorText`, `NoResultsText`, or the result
+  count from `ResultCountTextFunc` (default `"1 result"` / `"{n} results"`). The count is never shown visually.
+
+### External Label and Field Descriptions
+
+```razor
+<label id="owner-label" class="adapt-label">Ägare <span>(obligatoriskt)</span></label>
+<button type="button" class="info" aria-label="Mer information">i</button>
+<Combobox TItem="User" StaticData="Users" @bind-Value="Owner"
+          AriaLabelledBy="owner-label"
+          AriaDescribedBy="owner-help owner-error"
+          Invalid="@(!ownerIsValid)" />
+<p id="owner-help">Den som ansvarar för ärendet.</p>
+<p id="owner-error">Välj en ägare.</p>
+```
+
+The component takes `AriaLabelledBy` rather than a label template: the wrapper keeps full control over the
+label markup and layout, and an info button stays outside the `<label>` (interactive content inside a
+label is invalid and would end up in the accessible name). `AriaLabelledBy` is set on the trigger and the
+listbox and replaces the generated `aria-label`. `AriaDescribedBy` goes on the trigger and on the search
+input in the dropdown. `Invalid` sets `aria-invalid="true"` on the trigger and `.combo-invalid` on the root.
+
+### Custom Filtering for `StaticData`
+
+```razor
+<Combobox TItem="User" StaticData="Users" @bind-Value="Owner" ToStringFunc="@(u => u.Name)"
+          FilterFunc="@((u, search) => u.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase)
+                                    || u.Email.Contains(search, StringComparison.CurrentCultureIgnoreCase))" />
+```
+
+`FilterFunc` is called with each item and the (non-empty) search text. Without it the search matches
+`ToStringFunc` case-insensitively anywhere in the text.
+
+### Dropdown Width Limits
+
+```razor
+<Select TItem="string" Items="Fruits" @bind-Value="Fruit"
+        DropdownMinWidth="300px" DropdownMaxWidth="480px" AnchorPosition="DropdownAnchorPosition.Right" />
+```
+
+The dropdown is at least as wide as the trigger, at least `DropdownMinWidth` and at most `DropdownMaxWidth`
+(but never narrower than the trigger). When either is set, the width is resolved in pixels and the dropdown
+is moved horizontally to stay 8 px inside the viewport, whatever `AnchorPosition` says. Without them the
+placement is exactly as before.
+
 ## 🎨 Styling Guidance
 
 - Uses semantic HTML and CSS classes.
@@ -391,14 +528,33 @@ Notes:
 | `ClearOnSelect`          | `bool` (default: `false`)                          | A pick does not set `Value`: the dropdown closes and the search text is cleared. When `false` with `SearchInTrigger`, a pick puts `ToStringFunc(item)` in the input. With `MultiSelect` a pick still toggles `Values` and the dropdown stays open; only the search text is cleared. |
 | `AddOptionPosition`      | `AddOptionPosition` (default: `Top`)               | Places the add option above (`Top`) or below (`Bottom`) the results.                                                     |
 | `HighlightFirstItem`     | `bool` (default: `true`)                           | `false` leaves nothing highlighted after a search, so Enter submits the add option until an arrow key is pressed.        |
-| `FooterTemplate`         | `RenderFragment?`                                  | Static content at the bottom of the dropdown, below the results (for example keyboard hints).                           |
+| `FooterTemplate`         | `RenderFragment?`                                  | Static content at the bottom of the dropdown, below the results (for example keyboard hints or a "Done" button). Also on `<Select>`. |
+| `ItemContentTemplate`    | `RenderFragment<ComboItemContext<TItem>>?`         | Row content with `Item`, `IsSelected`, `IsHighlighted`, `IsDisabled`, `SearchText` and `SplitByMatch(text)`. Wins over `ItemTemplate`. Also on `<Select>` (`SearchText` is empty). |
+| `Clearable`              | `bool` (default: `false`)                          | × button left of the chevron while there is a value; resets `Value`/`Values`, invokes `OnClear`, focuses the trigger. Also on `<Select>`. |
+| `ClearButtonAriaLabel`   | `string` (default: `"Clear selection"`)            | Accessible name of the clear button. Also on `<Select>`.                                                                  |
+| `OnClear`                | `EventCallback`                                    | Invoked after the clear button reset the value. Also on `<Select>`.                                                       |
+| `Loading`                | `bool` (default: `false`)                          | 16 px spinner next to the chevron and `aria-busy="true"`; the trigger stays usable. Also on `<Select>`.                  |
+| `StartContent`           | `RenderFragment?`                                  | Leading content in the trigger (icon, avatar), shown also without a value. No interactive content. Also on `<Select>`.   |
+| `ErrorTemplate`          | `RenderFragment<ComboErrorContext>?`               | Shown when the `DataProvider` throws; context has `Exception` and `Retry` (calls `RefreshAsync()`). Also on `<Select>`.   |
+| `ErrorText`              | `string` (default: `"Something went wrong."`)      | Default error row and its announcement. Also on `<Select>`.                                                               |
+| `LoadingText`            | `string?` (default: none; `<Select>`: `"Loading..."`) | Combobox: spinner + this text in the first-load row instead of the dots. Select: the existing loading text.          |
+| `LoadingTemplate`        | `RenderFragment?`                                  | Replaces the content of the loading row. Also on `<Select>`.                                                              |
+| `LoadingAnnouncementText`| `string` (default: `"Loading results"`)            | Announced in the live region while loading. Also on `<Select>`.                                                           |
+| `ResultCountTextFunc`    | `Func<int, string>?`                               | Builds the announced (not shown) result count. Default `"1 result"` / `"{n} results"`.                                    |
+| `AriaLabelledBy`         | `string?`                                          | Id(s) of an external label, set on the trigger and the listbox; replaces the generated `aria-label`. Also on `<Select>`. |
+| `AriaDescribedBy`        | `string?`                                          | Id(s) of help/error text, set on the trigger and on the dropdown search input. Also on `<Select>` (trigger).             |
+| `Invalid`                | `bool` (default: `false`)                          | `aria-invalid="true"` on the trigger and `.combo-invalid` on the root. Also on `<Select>`.                                |
+| `FilterFunc`             | `Func<TItem, string, bool>?`                       | Search predicate for `StaticData` (item, non-empty search). Default: case-insensitive contains on `ToStringFunc`.        |
+| `DropdownMinWidth`       | `string?`                                          | CSS length. Minimum dropdown width; never narrower than the trigger. Keeps the dropdown inside the viewport. Also on `<Select>`. |
+| `DropdownMaxWidth`       | `string?`                                          | CSS length. Maximum dropdown width, but not below the trigger width. Keeps the dropdown inside the viewport. Also on `<Select>`. |
 
 ### Public Methods
 
 | Method           | Description                                                                                         |
 |------------------|-----------------------------------------------------------------------------------------------------|
 | `FocusAsync()`   | Focuses the search input (`SearchInTrigger`) or the trigger button.                                 |
-| `RefreshAsync()` | Calls the data source again with the current search text and keeps the dropdown open. No-op while closed. |
+| `RefreshAsync()` | Calls the data source again with the current search text and keeps the dropdown open. No-op while closed. `<Select>`: reloads `DataProvider`. |
+| `CloseAsync()`   | Closes the dropdown and focuses the trigger, e.g. from a "Done" button in `FooterTemplate`. No-op while closed. Also on `<Select>`. |
 
 ## ⚙️ Configuration Rules
 
@@ -413,12 +569,25 @@ Notes:
 
 - Trigger supports `ArrowDown` / `ArrowUp` to open the dropdown and `Escape` to close.
 - Search input supports arrow navigation, `Enter` to select highlighted item, and `Escape` to close.
+  With text in the search, the first `Escape` empties the search and the next one closes.
+- After a pick in single-select mode the search is empty the next time the dropdown opens (also when
+  `SearchText` is bound). In multi-select mode the search stays, so more matches can be picked.
+- After each search the first enabled match is active (`HighlightFirstItem`), so `Enter` picks it.
+- Disabled items (`ItemDisabledFunc`) are reachable with the arrow keys and carry `aria-disabled="true"`,
+  so their reason is read out, but `Enter`, `Space` and clicks do not pick them.
+- The mouse makes a row active only when it actually moves over it (mousemove), never when a row
+  scrolls under a still pointer. There is no `:hover` styling on rows; style `.combo-item.highlighted`.
 - With `SearchInTrigger`, the same keys work in the trigger input; `Escape` closes the dropdown and leaves focus in the input, and `Tab` closes it and moves on.
 - Arrow keys skip group headers and footers. The add option row is reachable too: `ArrowUp` from the first item when it is on `Top`, `ArrowDown` from the last item when it is at the `Bottom`.
 - With `ShowAddOption`, `Enter` with nothing highlighted invokes `AddOptionChanged` with the current search text.
 - With `MultiSelect`, `Enter` and `Space` toggle the highlighted item without closing; `Escape` closes and returns focus to the trigger, and `Tab` closes too. In the `Combobox` search input `Space` toggles only while the search is empty; once you have typed, it is part of the search text.
 - ARIA roles and attributes are included for combobox semantics (`combobox`, `listbox`, `option`, `aria-expanded`, `aria-controls`, `aria-activedescendant`, `aria-selected`, and `aria-multiselectable` with `MultiSelect`).
-- A polite `aria-live` region announces loading and no-results state.
+- A polite `aria-live` region announces loading (`LoadingAnnouncementText`), errors (`ErrorText`),
+  no results (`NoResultsText`) and the result count (`ResultCountTextFunc`). The count is not shown visually.
+- `AriaLabelledBy`, `AriaDescribedBy` and `Invalid` set `aria-labelledby`, `aria-describedby` and
+  `aria-invalid` on the trigger (and `aria-describedby` on the dropdown search input). `Loading` sets `aria-busy`.
+- The `Clearable` button is a real `<button>` next to the trigger (not inside it) with `ClearButtonAriaLabel`,
+  reachable with `Tab`.
 
 
 

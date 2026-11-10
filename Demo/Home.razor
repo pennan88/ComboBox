@@ -1,0 +1,437 @@
+@page "/"
+@* Playground for the Select and Combobox options. Toggle the settings at the top and try the fields below. *@
+
+<main class="demo">
+    <h1>ComboBox – demo</h1>
+    <p class="lead">Ändra inställningarna och prova fälten. Händelser loggas längst ner.</p>
+
+    <section class="panel settings" aria-label="Inställningar">
+        <h2>Inställningar (gäller alla fält)</h2>
+        <div class="settings-grid">
+            <label><input type="checkbox" @bind="_disabled" /> Disabled</label>
+            <label><input type="checkbox" @bind="_invalid" /> Invalid (aria-invalid + feltext)</label>
+            <label><input type="checkbox" @bind="_loading" /> Loading (spinner i triggern)</label>
+            <label><input type="checkbox" @bind="_clearable" /> Clearable</label>
+            <label><input type="checkbox" @bind="_startContent" /> StartContent (ikon)</label>
+            <label><input type="checkbox" @bind="_widthLimits" /> DropdownMinWidth 300px / MaxWidth 480px</label>
+            <label><input type="checkbox" @bind="_highlightFirst" /> HighlightFirstItem</label>
+            <label>
+                AnchorPosition
+                <select @bind="_anchor">
+                    <option value="@DropdownAnchorPosition.Left">Left</option>
+                    <option value="@DropdownAnchorPosition.Center">Center</option>
+                    <option value="@DropdownAnchorPosition.Right">Right</option>
+                </select>
+            </label>
+            <label>
+                Fältbredd
+                <select @bind="_fieldWidth">
+                    <option value="220px">220px</option>
+                    <option value="320px">320px</option>
+                    <option value="100%">100%</option>
+                </select>
+            </label>
+        </div>
+    </section>
+
+    <div class="grid">
+        @* ---------------- Select, single ---------------- *@
+        <section class="panel">
+            <h2>Select – enkelval</h2>
+            <p class="hint">Inaktiva personer går att nå med piltangenterna men inte välja. Rader med beskrivning via <code>ItemContentTemplate</code>.</p>
+            <div class="field" style="width:@_fieldWidth">
+                <Select TItem="Person"
+                        Items="@FewPeople"
+                        @bind-Value="_selectPerson"
+                        @bind-Value:after="@(() => Log($"Select: Value = {_selectPerson?.Name ?? "null"}"))"
+                        ToStringFunc="@(p => p.Name)"
+                        ItemDisabledFunc="@(p => p.Inactive)"
+                        Label="Handläggare"
+                        Placeholder="Välj handläggare"
+                        Disabled="_disabled"
+                        Invalid="_invalid"
+                        Loading="_loading"
+                        Clearable="_clearable"
+                        ClearButtonAriaLabel="Rensa handläggare"
+                        OnClear="@(() => Log("Select: OnClear"))"
+                        StartContent="@(_startContent ? UserIcon : null)"
+                        AnchorPosition="_anchor"
+                        DropdownMinWidth="@MinWidth"
+                        DropdownMaxWidth="@MaxWidth">
+                    <ItemContentTemplate Context="row">
+                        <span class="row">
+                            <span class="row-title">@row.Item.Name</span>
+                            <span class="row-desc">@(row.IsDisabled ? "Inaktiv – kan inte väljas" : row.Item.Team)</span>
+                        </span>
+                    </ItemContentTemplate>
+                </Select>
+            </div>
+        </section>
+
+        @* ---------------- Select, multi with Done ---------------- *@
+        <section class="panel">
+            <h2>Select – flerval med ”Klar”</h2>
+            <p class="hint"><code>MultiSelect</code>, checkbox-rader och en Klar-knapp i <code>FooterTemplate</code> som anropar <code>CloseAsync()</code>.</p>
+            <div class="field" style="width:@_fieldWidth">
+                <Select @ref="_teamSelect"
+                        TItem="string"
+                        Items="@Teams"
+                        MultiSelect="true"
+                        @bind-Values="_teams"
+                        @bind-Values:after="@(() => Log($"Select flerval: {string.Join(", ", _teams)}"))"
+                        ShowCheckmarkInList="false"
+                        Label="Team"
+                        Placeholder="Välj team"
+                        Disabled="_disabled"
+                        Invalid="_invalid"
+                        Loading="_loading"
+                        Clearable="_clearable"
+                        OnClear="@(() => Log("Select flerval: OnClear"))"
+                        AnchorPosition="_anchor"
+                        DropdownMinWidth="@MinWidth"
+                        DropdownMaxWidth="@MaxWidth">
+                    <ItemContentTemplate Context="row">
+                        <span class="row-check">
+                            <input type="checkbox" checked="@row.IsSelected" tabindex="-1" aria-hidden="true" />
+                            @row.Item
+                        </span>
+                    </ItemContentTemplate>
+                    <FooterTemplate>
+                        <div class="footer-actions">
+                            <button type="button" class="btn" @onclick="() => _teamSelect!.CloseAsync()">Klar</button>
+                        </div>
+                    </FooterTemplate>
+                </Select>
+            </div>
+        </section>
+
+        @* ---------------- Combobox, static, external label ---------------- *@
+        <section class="panel">
+            <h2>Combobox – egen etikett, FilterFunc, träffmarkering</h2>
+            <p class="hint">Sök på namn <em>eller</em> e-post (<code>FilterFunc</code>). Träffen markeras med <code>SplitByMatch</code>. Esc med text rensar först, sedan stänger.</p>
+            <div class="adapt-label-row">
+                <span id="owner-label" class="adapt-label">Ägare <span class="required">(obligatoriskt)</span></span>
+                <button type="button" class="info" aria-label="Mer information om ägare" title="Den som ansvarar för ärendet">i</button>
+            </div>
+            <div class="field" style="width:@_fieldWidth">
+                <Combobox TItem="Person"
+                          StaticData="@AllPeople"
+                          @bind-Value="_owner"
+                          @bind-Value:after="@(() => Log($"Combobox: Value = {_owner?.Name ?? "null"}"))"
+                          ToStringFunc="@(p => p.Name)"
+                          FilterFunc="@MatchesNameOrEmail"
+                          ItemDisabledFunc="@(p => p.Inactive)"
+                          AriaLabelledBy="owner-label"
+                          AriaDescribedBy="@OwnerDescribedBy"
+                          Placeholder="Välj ägare"
+                          SearchPlaceholder="Sök namn eller e-post"
+                          NoResultsText="Inga träffar"
+                          ResultCountTextFunc="@SwedishCount"
+                          ItemSize="52"
+                          HighlightFirstItem="_highlightFirst"
+                          Disabled="_disabled"
+                          Invalid="_invalid"
+                          Loading="_loading"
+                          Clearable="_clearable"
+                          ClearButtonAriaLabel="Rensa ägare"
+                          OnClear="@(() => Log("Combobox: OnClear"))"
+                          StartContent="@(_startContent ? UserIcon : null)"
+                          AnchorPosition="_anchor"
+                          DropdownMinWidth="@MinWidth"
+                          DropdownMaxWidth="@MaxWidth">
+                    <ItemContentTemplate Context="row">
+                        <span class="row">
+                            <span class="row-title">@Highlight(row, row.Item.Name)</span>
+                            <span class="row-desc">
+                                @if (row.IsDisabled)
+                                {
+                                    @("Inaktiv – kan inte väljas")
+                                }
+                                else
+                                {
+                                    @Highlight(row, row.Item.Email)
+                                }
+                            </span>
+                        </span>
+                    </ItemContentTemplate>
+                </Combobox>
+            </div>
+            <p id="owner-help" class="help">Den som ansvarar för ärendet.</p>
+            @if (_invalid)
+            {
+                <p id="owner-error" class="error">Välj en ägare.</p>
+            }
+        </section>
+
+        @* ---------------- Combobox, multi ---------------- *@
+        <section class="panel">
+            <h2>Combobox – flerval</h2>
+            <p class="hint">Sökningen står kvar efter ett val så att du kan välja fler träffar. Klar-knappen stänger.</p>
+            <div class="field" style="width:@_fieldWidth">
+                <Combobox @ref="_membersCombo"
+                          TItem="Person"
+                          StaticData="@AllPeople"
+                          MultiSelect="true"
+                          @bind-Values="_members"
+                          @bind-Values:after="@(() => Log($"Combobox flerval: {_members.Count} valda"))"
+                          ToStringFunc="@(p => p.Name)"
+                          MultiSelectionTextFunc="@(v => v.Count == 1 ? v[0].Name : $"{v.Count} personer")"
+                          ItemDisabledFunc="@(p => p.Inactive)"
+                          ShowCheckmarkInList="false"
+                          Label="Deltagare"
+                          Placeholder="Välj deltagare"
+                          SearchPlaceholder="Sök ..."
+                          ResultCountTextFunc="@SwedishCount"
+                          ItemSize="40"
+                          HighlightFirstItem="_highlightFirst"
+                          Disabled="_disabled"
+                          Invalid="_invalid"
+                          Loading="_loading"
+                          Clearable="_clearable"
+                          OnClear="@(() => Log("Combobox flerval: OnClear"))"
+                          AnchorPosition="_anchor"
+                          DropdownMinWidth="@MinWidth"
+                          DropdownMaxWidth="@MaxWidth">
+                    <ItemContentTemplate Context="row">
+                        <span class="row-check">
+                            <input type="checkbox" checked="@row.IsSelected" disabled="@row.IsDisabled" tabindex="-1" aria-hidden="true" />
+                            <span>@Highlight(row, row.Item.Name)</span>
+                        </span>
+                    </ItemContentTemplate>
+                    <FooterTemplate>
+                        <div class="footer-actions">
+                            <span>@_members.Count valda</span>
+                            <button type="button" class="btn" @onclick="() => _membersCombo!.CloseAsync()">Klar</button>
+                        </div>
+                    </FooterTemplate>
+                </Combobox>
+            </div>
+        </section>
+
+        @* ---------------- Combobox, DataProvider ---------------- *@
+        <section class="panel wide">
+            <h2>Combobox – DataProvider (laddning och fel)</h2>
+            <div class="settings-grid">
+                <label><input type="checkbox" @bind="_simulateError" /> Låt providern kasta fel</label>
+                <label><input type="checkbox" @bind="_virtualize" /> Virtualize</label>
+                <label><input type="checkbox" @bind="_useLoadingTemplate" /> LoadingTemplate i stället för LoadingText</label>
+                <label>
+                    Fördröjning
+                    <select @bind="_delayMs">
+                        <option value="0">0 ms</option>
+                        <option value="400">400 ms</option>
+                        <option value="1500">1500 ms</option>
+                    </select>
+                </label>
+            </div>
+            <p class="hint">Med fel påslaget visas <code>ErrorTemplate</code>; slå av felet och klicka ”Försök igen” (<code>Retry</code>). <code>LoadingText="Söker ..."</code> visas vid första laddningen.</p>
+            <div class="field" style="width:@_fieldWidth">
+                @* The key recreates the component when Virtualize changes, as it is not meant to change while mounted. *@
+                <Combobox @key="_virtualize"
+                          TItem="Person"
+                          DataProvider="@SearchPeople"
+                          Virtualize="_virtualize"
+                          @bind-Value="_remotePerson"
+                          @bind-Value:after="@(() => Log($"DataProvider: Value = {_remotePerson?.Name ?? "null"}"))"
+                          ToStringFunc="@(p => p.Name)"
+                          ItemDisabledFunc="@(p => p.Inactive)"
+                          Label="Person (server)"
+                          Placeholder="Sök person"
+                          SearchPlaceholder="Sök ..."
+                          LoadingText="Söker ..."
+                          LoadingTemplate="@(_useLoadingTemplate ? CustomLoading : null)"
+                          LoadingAnnouncementText="Laddar resultat"
+                          NoResultsText="Inga träffar"
+                          ErrorText="Kunde inte hämta personer."
+                          ResultCountTextFunc="@SwedishCount"
+                          ItemSize="52"
+                          HighlightFirstItem="_highlightFirst"
+                          Disabled="_disabled"
+                          Invalid="_invalid"
+                          Loading="_loading"
+                          Clearable="_clearable"
+                          OnClear="@(() => Log("DataProvider: OnClear"))"
+                          StartContent="@(_startContent ? UserIcon : null)"
+                          AnchorPosition="_anchor"
+                          DropdownMinWidth="@MinWidth"
+                          DropdownMaxWidth="@MaxWidth">
+                    <ItemContentTemplate Context="row">
+                        <span class="row">
+                            <span class="row-title">@Highlight(row, row.Item.Name)</span>
+                            <span class="row-desc">@row.Item.Team · @row.Item.Email</span>
+                        </span>
+                    </ItemContentTemplate>
+                    <ErrorTemplate Context="error">
+                        <div class="error-row">
+                            <span>Kunde inte hämta personer (@error.Exception.Message)</span>
+                            <button type="button" class="btn" @onclick="error.Retry">Försök igen</button>
+                        </div>
+                    </ErrorTemplate>
+                </Combobox>
+            </div>
+        </section>
+
+        @* ---------------- Combobox, GroupBy with StaticData ---------------- *@
+        <section class="panel wide">
+            <h2>Combobox – GroupBy med StaticData</h2>
+            <p class="hint">Personer grupperade per team. <code>GroupBy</code> kräver <code>Virtualize="false"</code> och att listan redan är sorterad på gruppen. Piltangenterna hoppar över gruppnamnen.</p>
+            <div class="settings-grid">
+                <label><input type="checkbox" @bind="_groupFooter" /> GroupFooterTemplate (antal per grupp)</label>
+            </div>
+            <div class="field" style="width:@_fieldWidth">
+                <Combobox TItem="Person"
+                          StaticData="@PeopleByTeam"
+                          GroupBy="@(p => p.Team)"
+                          Virtualize="false"
+                          PageSize="@PeopleByTeam.Count"
+                          @bind-Value="_groupedPerson"
+                          @bind-Value:after="@(() => Log($"GroupBy: Value = {_groupedPerson?.Name ?? "null"} ({_groupedPerson?.Team})"))"
+                          ToStringFunc="@(p => p.Name)"
+                          FilterFunc="@MatchesNameOrEmail"
+                          ItemDisabledFunc="@(p => p.Inactive)"
+                          Label="Person per team"
+                          Placeholder="Välj person"
+                          SearchPlaceholder="Sök namn eller e-post"
+                          NoResultsText="Inga träffar"
+                          ResultCountTextFunc="@SwedishCount"
+                          HighlightFirstItem="_highlightFirst"
+                          Disabled="_disabled"
+                          Invalid="_invalid"
+                          Loading="_loading"
+                          Clearable="_clearable"
+                          OnClear="@(() => Log("GroupBy: OnClear"))"
+                          StartContent="@(_startContent ? UserIcon : null)"
+                          AnchorPosition="_anchor"
+                          DropdownMinWidth="@MinWidth"
+                          DropdownMaxWidth="@MaxWidth"
+                          GroupFooterTemplate="@(_groupFooter ? GroupCount : null)">
+                    <GroupHeaderTemplate Context="team">
+                        <span class="group-header">@team</span>
+                    </GroupHeaderTemplate>
+                    <ItemContentTemplate Context="row">
+                        <span class="row">
+                            <span class="row-title">@Highlight(row, row.Item.Name)</span>
+                            <span class="row-desc">
+                                @if (row.IsDisabled)
+                                {
+                                    @("Inaktiv – kan inte väljas")
+                                }
+                                else
+                                {
+                                    @Highlight(row, row.Item.Email)
+                                }
+                            </span>
+                        </span>
+                    </ItemContentTemplate>
+                </Combobox>
+            </div>
+        </section>
+    </div>
+
+    <section class="panel log" aria-label="Händelselogg">
+        <h2>Händelser <button type="button" class="btn small" @onclick="() => _log.Clear()">Töm</button></h2>
+        @if (_log.Count == 0)
+        {
+            <p class="hint">Inget ännu.</p>
+        }
+        <ol reversed>
+            @foreach (var entry in _log)
+            {
+                <li>@entry</li>
+            }
+        </ol>
+    </section>
+</main>
+
+@code {
+    private static readonly List<Person> AllPeople = Person.All.ToList();
+    private static readonly List<Person> FewPeople = Person.All.Take(12).ToList();
+    // GroupBy renders a header whenever the key changes, so the list must be sorted by group.
+    private static readonly List<Person> PeopleByTeam = Person.All.OrderBy(p => p.Team).ThenBy(p => p.Name).ToList();
+    private static readonly List<string> Teams = ["Ekonomi", "Försäljning", "IT", "Support", "Ledning", "HR"];
+
+    private bool _disabled;
+    private bool _invalid;
+    private bool _loading;
+    private bool _clearable = true;
+    private bool _startContent;
+    private bool _widthLimits;
+    private bool _highlightFirst = true;
+    private DropdownAnchorPosition _anchor = DropdownAnchorPosition.Left;
+    private string _fieldWidth = "320px";
+
+    private bool _simulateError;
+    private bool _virtualize = true;
+    private bool _useLoadingTemplate;
+    private int _delayMs = 400;
+
+    private Person? _selectPerson;
+    private IReadOnlyList<string> _teams = [];
+    private Person? _owner;
+    private IReadOnlyList<Person> _members = [];
+    private Person? _remotePerson;
+    private Person? _groupedPerson;
+    private bool _groupFooter;
+
+    private static readonly RenderFragment<ComboGroupContext<Person>> GroupCount = group =>
+        @<span class="group-footer">@group.Items.Count i @group.Key</span>;
+
+    private Select<string>? _teamSelect;
+    private Combobox<Person>? _membersCombo;
+
+    private readonly List<string> _log = [];
+
+    private string? MinWidth => _widthLimits ? "300px" : null;
+    private string? MaxWidth => _widthLimits ? "480px" : null;
+    private string OwnerDescribedBy => _invalid ? "owner-help owner-error" : "owner-help";
+
+    private void Log(string message) => _log.Insert(0, $"{DateTime.Now:HH:mm:ss} {message}");
+
+    private static string SwedishCount(int n) => n == 1 ? "1 träff" : $"{n} träffar";
+
+    private static bool MatchesNameOrEmail(Person person, string search) =>
+        person.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
+        person.Email.Contains(search, StringComparison.CurrentCultureIgnoreCase);
+
+    private async ValueTask<ItemsProviderResult<Person>> SearchPeople(ComboState state, CancellationToken token)
+    {
+        if (_delayMs > 0)
+            await Task.Delay(_delayMs, token);
+
+        if (_simulateError)
+            throw new HttpRequestException("503 Service Unavailable");
+
+        var matches = AllPeople
+            .Where(p => string.IsNullOrWhiteSpace(state.Search) || MatchesNameOrEmail(p, state.Search))
+            .ToList();
+
+        return new ItemsProviderResult<Person>(matches.Skip(state.Skip).Take(state.Take), matches.Count);
+    }
+
+    private static RenderFragment Highlight<T>(ComboItemContext<T> row, string text) => builder =>
+    {
+        var sequence = 0;
+        foreach (var part in row.SplitByMatch(text))
+        {
+            if (part.IsMatch)
+            {
+                builder.OpenElement(sequence++, "mark");
+                builder.AddContent(sequence++, part.Text);
+                builder.CloseElement();
+            }
+            else
+            {
+                builder.AddContent(sequence++, part.Text);
+            }
+        }
+    };
+
+    private static readonly RenderFragment UserIcon =
+        @<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+        </svg>;
+
+    private static readonly RenderFragment CustomLoading =
+        @<span class="custom-loading">⏳ Hämtar personer från servern …</span>;
+}

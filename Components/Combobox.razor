@@ -11,6 +11,10 @@
     {
         <div id="@_triggerId" class="@InputClasses">
             <span class="combo-search-icon combo-adornment">@Search</span>
+            @if (StartContent is not null)
+            {
+                <span class="combo-start-content combo-adornment">@StartContent</span>
+            }
             <input @ref="_inputRef"
                    id="@_inputId"
                    class="combo-trigger-input"
@@ -22,7 +26,11 @@
                    aria-expanded="@(IsOpen ? "true" : "false")"
                    aria-controls="@_listboxId"
                    aria-activedescendant="@ActiveDescendantId"
-                   aria-label="@(string.IsNullOrWhiteSpace(Label) ? Placeholder : null)"
+                   aria-label="@(AriaLabelledByOrNull is null && string.IsNullOrWhiteSpace(Label) ? Placeholder : null)"
+                   aria-labelledby="@AriaLabelledByOrNull"
+                   aria-describedby="@AriaDescribedByOrNull"
+                   aria-invalid="@TriggerAriaInvalid"
+                   aria-busy="@TriggerAriaBusy"
                    placeholder="@Placeholder"
                    disabled="@Disabled"
                    value="@_searchText"
@@ -31,12 +39,16 @@
                    @onfocus="OnSearchInputFocus"
                    @onblur="OnSearchInputBlur"
                    @onclick="OnSearchInputClick"/>
+            @if (Loading)
+            {
+                <span class="combo-spinner combo-adornment" aria-hidden="true">@Spinner</span>
+            }
             @if (!string.IsNullOrEmpty(_searchText) && !Disabled)
             {
                 <button type="button"
                         class="combo-clear combo-adornment"
                         tabindex="-1"
-                        aria-label="Clear"
+                        aria-label="@(Clearable ? ClearButtonAriaLabel : "Clear")"
                         @onmousedown:preventDefault
                         @onclick="ClearSearch">
                     @Clear
@@ -44,65 +56,31 @@
             }
         </div>
     }
+    else if (Clearable)
+    {
+        @* The clear button cannot sit inside the trigger <button> (nested buttons are invalid HTML),
+           so the two are siblings in a wrapper and the clear button is laid over a spacer in the trigger. *@
+        <div class="combo-trigger-wrapper">
+            @TriggerButton
+            @if (ShowClearValueButton)
+            {
+                <button type="button"
+                        class="combo-clear combo-clear-value combo-adornment"
+                        aria-label="@ClearButtonAriaLabel"
+                        @onclick="ClearValueAsync">
+                    @Clear
+                </button>
+            }
+        </div>
+    }
     else
     {
-        <button id="@_triggerId"
-                @ref="_triggerRef"
-                type="button"
-                class="@InputClasses"
-                role="combobox"
-                aria-haspopup="listbox"
-                aria-expanded="@IsOpen"
-                aria-controls="@_listboxId"
-                aria-label="@TriggerAriaLabel"
-                @onclick="ToggleDropdown"
-                @onkeydown="HandleTriggerKeyDown">
-            @if (MultiSelect && Values is { Count: > 0 })
-            {
-                <span class="combo-trigger-content">
-                    <span class="combo-value">@MultiSelectionText</span>
-                </span>
-            }
-            else if (!MultiSelect && Value is not null)
-            {
-                if (SelectedTemplate is not null)
-                {
-                    <span class="combo-trigger-content combo-selected-template">
-                        @SelectedTemplate(Value!)
-                    </span>
-                }
-                else
-                {
-                    <span class="combo-trigger-content">
-                        <span class="combo-value">@GetItemString(Value)</span>
-                    </span>
-                }
-            }
-            else
-            {
-                <span class="combo-trigger-content">
-                    <span class="combo-placeholder">@Placeholder</span>
-                </span>
-            }
-
-            @if (string.IsNullOrEmpty(AdornmentIcon))
-            {
-                <span class="combo-chevron combo-adornment">
-                    @(IsOpen ? ChevronUp : ChevronDown)
-                </span>
-            }
-            else
-            {
-                <span class="combo-chevron combo-adornment">
-                    @RenderAdornmentIcon()
-                </span>
-            }
-        </button>
+        @TriggerButton
     }
 
     @if (IsOpen)
     {
-        <Portal Show="IsOpen" TriggerElementId="@_triggerId" Id="@PortalId" Width="@DropdownWidth" AnchorPosition="@AnchorPosition" MeasureClass="@DropdownClasses">
+        <Portal Show="IsOpen" TriggerElementId="@_triggerId" Id="@PortalId" Width="@DropdownWidth" MinWidth="@DropdownMinWidth" MaxWidth="@DropdownMaxWidth" AnchorPosition="@AnchorPosition" MeasureClass="@DropdownClasses">
             @if (!SearchInTrigger)
             {
                 @* The overlay would cover the trigger input, so search-in-trigger mode relies on the outside-click listener alone. *@
@@ -123,6 +101,7 @@
                                aria-label="@SearchPlaceholder"
                                aria-controls="@_listboxId"
                                aria-activedescendant="@ActiveDescendantId"
+                               aria-describedby="@AriaDescribedByOrNull"
                                placeholder="@SearchPlaceholder"
                                value="@_searchText"
                                @oninput="OnInput"
@@ -131,7 +110,7 @@
                     </div>
                 }
 
-                <div class="combo-content-container" id="@_listboxId" role="listbox" aria-multiselectable="@(MultiSelect ? "true" : null)">
+                <div class="combo-content-container" id="@_listboxId" role="listbox" aria-labelledby="@AriaLabelledByOrNull" aria-multiselectable="@(MultiSelect ? "true" : null)">
                     @if (IsAddOptionVisible && AddOptionPosition == AddOptionPosition.Top)
                     {
                         @AddOptionRow
@@ -139,7 +118,19 @@
                     @if (ShowLoadingRow)
                     {
                         <div class="combo-loading-row">
-                            <div class="progress"></div>
+                            @if (LoadingTemplate is not null)
+                            {
+                                @LoadingTemplate
+                            }
+                            else if (!string.IsNullOrEmpty(LoadingText))
+                            {
+                                <span class="combo-spinner combo-adornment" aria-hidden="true">@Spinner</span>
+                                <span class="combo-loading-text">@LoadingText</span>
+                            }
+                            else
+                            {
+                                <div class="progress"></div>
+                            }
                         </div>
                     }
                     @if (Virtualize)
@@ -196,6 +187,19 @@
                         }
                     }
 
+                    @if (ShowError)
+                    {
+                        <div class="combo-error">
+                            @if (ErrorTemplate is not null)
+                            {
+                                @ErrorTemplate(ErrorContext)
+                            }
+                            else
+                            {
+                                <p style="margin: 8px auto; text-align: center">@ErrorText</p>
+                            }
+                        </div>
+                    }
                     @if (ShowNoResults)
                     {
                         <div class="combo-no-results">
@@ -223,11 +227,19 @@
                 <div class="combo-sr-only" aria-live="polite">
                     @if (IsLoading)
                     {
-                        <span>Loading results</span>
+                        <span>@LoadingAnnouncementText</span>
+                    }
+                    else if (ShowError)
+                    {
+                        <span>@ErrorText</span>
                     }
                     else if (ShowNoResults)
                     {
                         <span>@NoResultsText</span>
+                    }
+                    else if (_hasLoadedOnce && _totalItemCount > 0)
+                    {
+                        <span>@ResultCountText(_totalItemCount)</span>
                     }
                 </div>
             </div>
@@ -237,6 +249,77 @@
 
 
 @code {
+    private RenderFragment TriggerButton =>
+        @<button id="@_triggerId"
+                 @ref="_triggerRef"
+                 type="button"
+                 class="@InputClasses"
+                 role="combobox"
+                 aria-haspopup="listbox"
+                 aria-expanded="@(IsOpen ? "true" : "false")"
+                 aria-controls="@_listboxId"
+                 aria-label="@TriggerAriaLabel"
+                 aria-labelledby="@AriaLabelledByOrNull"
+                 aria-describedby="@AriaDescribedByOrNull"
+                 aria-invalid="@TriggerAriaInvalid"
+                 aria-busy="@TriggerAriaBusy"
+                 @onclick="ToggleDropdown"
+                 @onkeydown="HandleTriggerKeyDown">
+            @if (StartContent is not null)
+            {
+                <span class="combo-start-content combo-adornment">@StartContent</span>
+            }
+            @if (MultiSelect && Values is { Count: > 0 })
+            {
+                <span class="combo-trigger-content">
+                    <span class="combo-value">@MultiSelectionText</span>
+                </span>
+            }
+            else if (!MultiSelect && Value is not null)
+            {
+                if (SelectedTemplate is not null)
+                {
+                    <span class="combo-trigger-content combo-selected-template">
+                        @SelectedTemplate(Value!)
+                    </span>
+                }
+                else
+                {
+                    <span class="combo-trigger-content">
+                        <span class="combo-value">@GetItemString(Value)</span>
+                    </span>
+                }
+            }
+            else
+            {
+                <span class="combo-trigger-content">
+                    <span class="combo-placeholder">@Placeholder</span>
+                </span>
+            }
+
+            @if (Loading)
+            {
+                <span class="combo-spinner combo-adornment" aria-hidden="true">@Spinner</span>
+            }
+            @if (ShowClearValueButton)
+            {
+                @* Keeps room for the clear button, which is laid over this spot from outside the trigger. *@
+                <span class="combo-clear-spacer" aria-hidden="true"></span>
+            }
+            @if (string.IsNullOrEmpty(AdornmentIcon))
+            {
+                <span class="combo-chevron combo-adornment">
+                    @(IsOpen ? ChevronUp : ChevronDown)
+                </span>
+            }
+            else
+            {
+                <span class="combo-chevron combo-adornment">
+                    @RenderAdornmentIcon()
+                </span>
+            }
+        </button>;
+
     // Without virtualization there is no fixed row height to keep aligned, so the empty
     // checkmark column is dropped when no item can ever show a checkmark.
     private bool ReserveCheckmarkSpace => ShowCheckmarkInList && (MultiSelect || !ClearOnSelect);
@@ -245,7 +328,7 @@
         @<div id="@optionId"
               role="option"
               aria-selected="@AriaSelected(item)"
-              aria-disabled="@IsItemDisabled(item)"
+              aria-disabled="@AriaDisabled(item)"
               style="@style"
               class="@GetItemClasses(item, highlighted)"
               @onclick="@(() => ItemClicked(item))">
@@ -254,12 +337,17 @@
                 {
                     <span class="combo-checkmark combo-adornment">@CheckMark</span>
                 }
-                else if (reserveCheckmarkSpace)
+                else if (reserveCheckmarkSpace && (ShowCheckmarkInList || ItemContentTemplate is null))
                 {
+                    @* With ItemContentTemplate and ShowCheckmarkInList="false" the template owns the whole row (e.g. its own checkbox). *@
                     <span class="combo-checkmark combo-adornment" style="opacity: 0">@CheckMark</span>
                 }
 
-                @if (ItemTemplate != null)
+                @if (ItemContentTemplate != null)
+                {
+                    @ItemContentTemplate(ItemContext(item, highlighted))
+                }
+                else if (ItemTemplate != null)
                 {
                     @ItemTemplate(item)
                 }
@@ -355,7 +443,13 @@
                                        <path d="M12 5v14"/>
                                    </svg>;
 
-    private RenderFragment Clear => @<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+    private RenderFragment Spinner => @<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                            class="lucide lucide-loader-circle-icon lucide-loader-circle">
+                                          <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                                      </svg>;
+
+    private RenderFragment Clear =>@<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
                                           fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                                           class="lucide lucide-x-icon lucide-x">
                                         <path d="M18 6 6 18"/>

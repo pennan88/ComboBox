@@ -273,20 +273,139 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     [Parameter]
     public RenderFragment? FooterTemplate { get; set; }
 
+    /// <summary>
+    /// Template for the content of each row, with the row's state (selected, highlighted, disabled)
+    /// and the current search text. Takes precedence over <see cref="ItemTemplate"/> when both are set.
+    /// With <see cref="Virtualize"/> the row keeps the fixed height <see cref="ItemSize"/>.
+    /// </summary>
+    [Parameter]
+    public RenderFragment<ComboItemContext<TItem>>? ItemContentTemplate { get; set; }
+
+    /// <summary>
+    /// Shows a clear (×) button next to the chevron while there is a value (<see cref="Value"/> or
+    /// <see cref="Values"/>). Clicking it resets the value, invokes <see cref="OnClear"/> and focuses the trigger.
+    /// With <see cref="SearchInTrigger"/> the existing clear button in the input also resets <see cref="Value"/>.
+    /// </summary>
+    [Parameter]
+    public bool Clearable { get; set; }
+
+    /// <summary>Accessible name of the clear button shown with <see cref="Clearable"/>.</summary>
+    [Parameter]
+    public string ClearButtonAriaLabel { get; set; } = "Clear selection";
+
+    /// <summary>Invoked after the clear button has reset the value.</summary>
+    [Parameter]
+    public EventCallback OnClear { get; set; }
+
+    /// <summary>
+    /// Shows a spinner in the trigger next to the chevron and sets <c>aria-busy</c>. The trigger stays usable.
+    /// </summary>
+    [Parameter]
+    public bool Loading { get; set; }
+
+    /// <summary>
+    /// Shown in the dropdown instead of the results when the <see cref="DataProvider"/> throws.
+    /// The context carries the exception and a <c>Retry</c> function that calls <see cref="RefreshAsync"/>.
+    /// </summary>
+    [Parameter]
+    public RenderFragment<ComboErrorContext>? ErrorTemplate { get; set; }
+
+    /// <summary>Text of the default error row (when <see cref="ErrorTemplate"/> is not set), also announced to screen readers.</summary>
+    [Parameter]
+    public string ErrorText { get; set; } = "Something went wrong.";
+
+    /// <summary>
+    /// Text in the visible loading row, shown with a spinner instead of the progress dots
+    /// (for example "Searching ..."). When not set the row shows the dots only.
+    /// </summary>
+    [Parameter]
+    public string? LoadingText { get; set; }
+
+    /// <summary>Replaces the content of the visible loading row. Takes precedence over <see cref="LoadingText"/>.</summary>
+    [Parameter]
+    public RenderFragment? LoadingTemplate { get; set; }
+
+    /// <summary>Announced to screen readers (aria-live) while results load.</summary>
+    [Parameter]
+    public string LoadingAnnouncementText { get; set; } = "Loading results";
+
+    /// <summary>
+    /// Builds the result count announced to screen readers (aria-live, polite) when the results change.
+    /// The count is never shown visually. Defaults to "1 result" / "{n} results".
+    /// </summary>
+    [Parameter]
+    public Func<int, string>? ResultCountTextFunc { get; set; }
+
+    /// <summary>
+    /// Id(s) of elements describing the field (help or error text). Set as <c>aria-describedby</c>
+    /// on the trigger and on the search input in the dropdown.
+    /// </summary>
+    [Parameter]
+    public string? AriaDescribedBy { get; set; }
+
+    /// <summary>Sets <c>aria-invalid="true"</c> on the trigger and the class <c>combo-invalid</c> on the root.</summary>
+    [Parameter]
+    public bool Invalid { get; set; }
+
+    /// <summary>
+    /// Id(s) of an external label. Set as <c>aria-labelledby</c> on the trigger and the listbox, replacing the
+    /// <c>aria-label</c> that is otherwise built from <see cref="Label"/> or <see cref="Placeholder"/>.
+    /// </summary>
+    [Parameter]
+    public string? AriaLabelledBy { get; set; }
+
+    /// <summary>
+    /// Search predicate for <see cref="StaticData"/>, called with the item and a non-empty search text.
+    /// Defaults to a case-insensitive "contains" on <see cref="ToStringFunc"/>.
+    /// </summary>
+    [Parameter]
+    public Func<TItem, string, bool>? FilterFunc { get; set; }
+
+    /// <summary>
+    /// Leading content in the trigger before the value or placeholder, e.g. an icon or an avatar.
+    /// Shown also when nothing is selected. Must not contain interactive elements (it sits inside a button).
+    /// </summary>
+    [Parameter]
+    public RenderFragment? StartContent { get; set; }
+
+    /// <summary>
+    /// Minimum width of the dropdown as a CSS length (for example <c>300px</c>). The dropdown is never
+    /// narrower than the trigger. Setting this or <see cref="DropdownMaxWidth"/> also keeps the dropdown inside the viewport horizontally.
+    /// </summary>
+    [Parameter]
+    public string? DropdownMinWidth { get; set; }
+
+    /// <summary>
+    /// Maximum width of the dropdown as a CSS length (for example <c>480px</c>). It does not shrink the
+    /// dropdown below the trigger width.
+    /// </summary>
+    [Parameter]
+    public string? DropdownMaxWidth { get; set; }
+
     private string PortalId { get; } = $"portal-{Guid.NewGuid()}";
 
 
     private string Classes => new ClassBuilder()
         .AddClass("combo-container")
         .AddClass("combo-disabled", Disabled)
+        .AddClass("combo-invalid", Invalid)
         .AddClass(Class)
         .Build();
 
     private string InputClasses => new ClassBuilder()
         .AddClass("combo-trigger")
         .AddClass("combo-trigger-search", SearchInTrigger)
+        .AddClass("combo-trigger-clearable", ShowClearValueButton)
         .AddClass(InputClass)
         .Build();
+
+    private bool HasValue => MultiSelect ? Values is { Count: > 0 } : Value is not null;
+
+    private bool ShowClearValueButton => Clearable && !SearchInTrigger && !Disabled && HasValue;
+
+    private string? TriggerAriaInvalid => Invalid ? "true" : null;
+
+    private string? TriggerAriaBusy => Loading ? "true" : null;
 
     private string DropdownClasses => new ClassBuilder()
         .AddClass("combo-dropdown")
@@ -304,7 +423,12 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         .AddClass("highlighted", _addOptionHighlighted)
         .Build();
 
-    private string TriggerAriaLabel => string.IsNullOrWhiteSpace(Label) ? Placeholder : Label;
+    private string? TriggerAriaLabel => !string.IsNullOrWhiteSpace(AriaLabelledBy) ? null
+        : string.IsNullOrWhiteSpace(Label) ? Placeholder : Label;
+
+    private string? AriaLabelledByOrNull => string.IsNullOrWhiteSpace(AriaLabelledBy) ? null : AriaLabelledBy;
+
+    private string? AriaDescribedByOrNull => string.IsNullOrWhiteSpace(AriaDescribedBy) ? null : AriaDescribedBy;
 
     private ElementReference? _rootRef;
     private ElementReference _triggerRef;
@@ -340,8 +464,18 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     // False from opening until the data source has returned for the first time. Until then the
     // dropdown shows only the loading row: no footers and no "no results" content.
     private bool _hasLoadedOnce;
+    // Set when the DataProvider threw; cleared when the next load starts.
+    private Exception? _loadError;
+    // The search text the results on screen were loaded for (passed to ItemContentTemplate).
+    private string _resultsSearchText = "";
+    // True once the user has moved the highlight (arrow keys or mouse). Until then a reload may move
+    // the highlight to the first enabled item; afterwards it may rest on a disabled item.
+    private bool _highlightMovedByUser;
 
-    private bool ShowNoResults => !IsLoading && _totalItemCount == 0;
+    private bool ShowError => !IsLoading && _loadError is not null;
+    private bool ShowNoResults => !IsLoading && _loadError is null && _totalItemCount == 0;
+    private string ResultCountText(int count) =>
+        ResultCountTextFunc?.Invoke(count) ?? (count == 1 ? "1 result" : $"{count} results");
     // A loading row in the results area while there is nothing to keep on screen.
     private bool ShowLoadingRow => IsLoading && (!_hasLoadedOnce || _visibleItems.Count == 0);
     // A thin bar at the top of the dropdown while earlier results stay visible.
@@ -458,6 +592,19 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         }
     });
 
+    /// <summary>
+    /// Closes the dropdown and returns focus to the trigger, e.g. from a "Done" button in <see cref="FooterTemplate"/>.
+    /// Does nothing while the dropdown is closed.
+    /// </summary>
+    public Task CloseAsync() => InvokeAsync(async () =>
+    {
+        if (!IsOpen)
+            return;
+
+        await CloseDropdownAsync(true);
+        StateHasChanged();
+    });
+
     private string MultiSelectionText =>
         Values is null ? "" : MultiSelectionTextFunc?.Invoke(Values) ?? MultiSelection.DefaultText(Values, GetItemString);
 
@@ -517,6 +664,7 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
         _totalItemCount = -1;
         _hasLoadedOnce = false;
+        _loadError = null;
         ResetHighlight();
 
         if (!SearchInTrigger)
@@ -695,25 +843,36 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         {
             //Server-side:
             IsLoading = true;
+            _loadError = null;
             StateHasChanged();
 
+            var search = _searchText;
             try
             {
                 // Invoke the provider and honor cancellation
                 var result = await DataProvider(
-                    new ComboState(_searchText, request.Count, request.StartIndex),
+                    new ComboState(search, request.Count, request.StartIndex),
                     request.CancellationToken
                 );
 
                 _visibleItems = result.Items.ToList();
                 _totalItemCount = result.TotalItemCount;
+                _resultsSearchText = search;
                 _hasLoadedOnce = true;
                 EnsureHighlightedItemIsEnabled();
                 return result;
             }
-            catch (OperationCanceledException) when (request.CancellationToken.IsCancellationRequested)
+            catch (Exception exception)
             {
-                _totalItemCount = -1;
+                // Virtualize ignores the result of a cancelled request. Any other exception is shown
+                // as an error: rethrowing would let Virtualize throw from its render and tear down the
+                // circuit. An OperationCanceledException on a token that was not cancelled (an
+                // HttpClient timeout, for example) counts as a failure too.
+                if (request.CancellationToken.IsCancellationRequested)
+                    _totalItemCount = -1;
+                else
+                    SetLoadError(exception);
+
                 return new ItemsProviderResult<TItem>(Array.Empty<TItem>(), 0);
             }
             finally
@@ -735,6 +894,7 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
             _visibleItems = page;
             _totalItemCount = filtered.Count;
+            _resultsSearchText = _searchText;
             _hasLoadedOnce = true;
             EnsureHighlightedItemIsEnabled();
             return new ItemsProviderResult<TItem>(page, filtered.Count);
@@ -760,19 +920,21 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         var previouslyHighlighted = hadHighlightedItem ? _visibleItems[_highlightedIndex] : default;
 
         IsLoading = true;
+        _loadError = null;
         StateHasChanged();
 
+        var search = _searchText;
         try
         {
             List<TItem> items;
             if (DataProvider is not null)
             {
-                var result = await DataProvider(new ComboState(_searchText, PageSize, 0), token);
+                var result = await DataProvider(new ComboState(search, PageSize, 0), token);
                 items = result.Items.ToList();
             }
             else
             {
-                items = FilterStaticData(_searchText).Take(PageSize).ToList();
+                items = FilterStaticData(search).Take(PageSize).ToList();
             }
 
             if (token.IsCancellationRequested)
@@ -781,6 +943,7 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
             _visibleItems = items;
             _groups = BuildGroups(items);
             _totalItemCount = items.Count;
+            _resultsSearchText = search;
             _hasLoadedOnce = true;
 
             if (hadHighlightedItem)
@@ -788,8 +951,17 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
 
             EnsureHighlightedItemIsEnabled();
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        catch (Exception exception)
         {
+            // A cancelled load has been replaced by a newer one (or the dropdown closed): whatever it
+            // threw no longer matters. Otherwise rethrowing would surface as an unhandled exception in
+            // the event handler that started the load.
+            if (!token.IsCancellationRequested)
+            {
+                _visibleItems = [];
+                _groups = [];
+                SetLoadError(exception);
+            }
         }
         finally
         {
@@ -804,10 +976,23 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         }
     }
 
+    private void SetLoadError(Exception exception)
+    {
+        _loadError = exception;
+        _totalItemCount = 0;
+        _hasLoadedOnce = true;
+        _highlightedIndex = -1;
+    }
+
+    private ComboErrorContext ErrorContext => new(_loadError!, RefreshAsync);
+
     private List<TItem> FilterStaticData(string search)
     {
-        return string.IsNullOrEmpty(search)
-            ? StaticData!
+        if (string.IsNullOrEmpty(search))
+            return StaticData!;
+
+        return FilterFunc is not null
+            ? StaticData!.Where(item => FilterFunc(item, search)).ToList()
             : StaticData!.Where(item => ItemMatches(item, search)).ToList();
     }
 
@@ -852,6 +1037,11 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     {
         return ItemDisabledFunc?.Invoke(item) == true;
     }
+
+    private string? AriaDisabled(TItem item) => IsItemDisabled(item) ? "true" : null;
+
+    private ComboItemContext<TItem> ItemContext(TItem item, bool highlighted) =>
+        new(item, IsSelectedItem(item), highlighted, IsItemDisabled(item), _resultsSearchText);
 
     private string GetItemClasses(TItem item, bool highlighted)
     {
@@ -901,6 +1091,13 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     {
         if (Disabled)
             return;
+
+        // Escape with text in the search clears the search first; the next Escape closes.
+        if (e.Key == "Escape" && !string.IsNullOrEmpty(_searchText))
+        {
+            await ClearDropdownSearchAsync();
+            return;
+        }
 
         if (e.Key == "Escape" || (e.Key == "Tab" && MultiSelect))
         {
@@ -1004,30 +1201,30 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     private void ResetHighlight()
     {
         _addOptionHighlighted = false;
+        _highlightMovedByUser = false;
         _highlightedIndex = HighlightFirstItem ? 0 : -1;
     }
 
     /// <summary>
-    /// Moves the highlight over enabled items, plus the add option row when it is visible.
+    /// Moves the highlight over the items, plus the add option row when it is visible. Disabled items
+    /// are reachable, so a screen reader announces them (aria-disabled), but they cannot be picked.
     /// Group headers and footers are not part of <see cref="_visibleItems"/>, so they are never highlighted.
     /// </summary>
     private void MoveHighlight(int offset)
     {
+        _highlightMovedByUser = true;
         var step = offset < 0 ? -1 : 1;
         var addVisible = IsAddOptionVisible;
         var addOnTop = AddOptionPosition == AddOptionPosition.Top;
+        var count = _visibleItems.Count;
 
         if (_addOptionHighlighted)
         {
             // From the add option, only moving towards the list goes anywhere.
-            if (addOnTop == step > 0)
+            if (addOnTop == step > 0 && count > 0)
             {
-                var next = addOnTop ? FindEnabledIndex(0, 1) : FindEnabledIndex(_visibleItems.Count - 1, -1);
-                if (next >= 0)
-                {
-                    _addOptionHighlighted = false;
-                    _highlightedIndex = next;
-                }
+                _addOptionHighlighted = false;
+                _highlightedIndex = addOnTop ? 0 : count - 1;
             }
 
             return;
@@ -1041,20 +1238,50 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
                 return;
             }
 
-            var first = step > 0 ? FindEnabledIndex(0, 1) : FindEnabledIndex(_visibleItems.Count - 1, -1);
-            if (first >= 0)
-                _highlightedIndex = first;
+            if (count > 0)
+                _highlightedIndex = step > 0 ? 0 : count - 1;
             else if (addVisible)
                 HighlightAddOption();
             return;
         }
 
-        var nextIndex = FindEnabledIndex(_highlightedIndex + step, step);
-        if (nextIndex >= 0)
+        var nextIndex = _highlightedIndex + step;
+        if (nextIndex >= 0 && nextIndex < count)
             _highlightedIndex = nextIndex;
         else if (addVisible && addOnTop == step < 0)
             HighlightAddOption();
     }
+
+    /// <summary>
+    /// Called by combobox.js when the mouse actually moves onto another row. A row that only slides
+    /// under a still pointer (keyboard scrolling) never fires this, so the highlight stays put.
+    /// Disabled rows are skipped; they cannot be picked with the mouse.
+    /// </summary>
+    [JSInvokable]
+    public Task HighlightOptionFromPointer(string optionId) => InvokeAsync(() =>
+    {
+        if (!IsOpen || string.IsNullOrEmpty(optionId))
+            return;
+
+        var index = -1;
+        for (var i = 0; i < _visibleItems.Count; i++)
+        {
+            var id = Virtualize ? GetOptionId(_visibleItems[i]) : GetOptionId(i);
+            if (id == optionId)
+            {
+                index = i;
+                break;
+            }
+        }
+
+        if (index < 0 || IsItemDisabled(_visibleItems[index]) || (index == _highlightedIndex && !_addOptionHighlighted))
+            return;
+
+        _addOptionHighlighted = false;
+        _highlightMovedByUser = true;
+        _highlightedIndex = index;
+        StateHasChanged();
+    });
 
     private void HighlightAddOption()
     {
@@ -1067,7 +1294,8 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         if (_addOptionHighlighted)
             return;
 
-        if (HasHighlightedItem && !IsItemDisabled(_visibleItems[_highlightedIndex]))
+        // A highlight the user put on a disabled item stays there; only the automatic one moves on.
+        if (HasHighlightedItem && (_highlightMovedByUser || !IsItemDisabled(_visibleItems[_highlightedIndex])))
             return;
 
         _highlightedIndex = HighlightFirstItem ? FindEnabledIndex(0, 1) : -1;
@@ -1088,11 +1316,34 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         return -1;
     }
 
-    private async Task ScrollHighlightedItemIntoView()
+    // Set by keyboard navigation; the scroll runs in OnAfterRenderAsync. Calling into JS straight
+    // from the key handler would reach the browser before the new highlight has been rendered, so
+    // the list would always scroll to the previously highlighted row.
+    private bool _scrollToHighlightPending;
+
+    private Task ScrollHighlightedItemIntoView()
     {
-        if (Js != null && _rootRef.HasValue)
+        _scrollToHighlightPending = true;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_scrollToHighlightPending)
+            return;
+
+        _scrollToHighlightPending = false;
+        if (Js != null && _rootRef.HasValue && IsOpen)
         {
-            await Js.InvokeVoidAsync("comboBoxScrollToHighlighted", _rootRef, PortalId);
+            try
+            {
+                await Js.InvokeVoidAsync("comboBoxScrollToHighlighted", _rootRef, PortalId, ActiveDescendantId);
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit closed; nothing to scroll.
+            }
         }
     }
 
@@ -1114,8 +1365,10 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         else
         {
             Value = item;
-            if (SearchInTrigger)
-                _searchText = GetItemString(item);
+            // The in-dropdown search starts empty the next time the dropdown opens. Clearing it here
+            // (and reporting it on close) also covers a parent that binds SearchText and would
+            // otherwise pass the old search back as the prefill.
+            _searchText = SearchInTrigger ? GetItemString(item) : "";
         }
 
         // Closing reports the new search text through SearchTextChanged.
@@ -1193,6 +1446,56 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         ResetHighlight();
         await CloseDropdownAsync(false);
         await _inputRef.FocusAsync();
+
+        if (Clearable && Value is not null)
+        {
+            Value = default;
+            await ValueChanged.InvokeAsync(default);
+            await OnClear.InvokeAsync();
+        }
+    }
+
+    /// <summary>
+    /// The first Escape in the in-dropdown search: empties the search and reloads, keeping the dropdown open.
+    /// </summary>
+    private async Task ClearDropdownSearchAsync()
+    {
+        CancelDebounce();
+        _searchText = "";
+        _totalItemCount = -1;
+        _hasRenderedItems = false;
+        ResetHighlight();
+        await NotifySearchTextAsync();
+        await RefreshItems();
+    }
+
+    /// <summary>
+    /// The clear button shown with <see cref="Clearable"/>: resets the value and focuses the trigger.
+    /// </summary>
+    private async Task ClearValueAsync()
+    {
+        if (Disabled)
+            return;
+
+        if (IsOpen)
+            await CloseDropdownAsync(false);
+
+        if (MultiSelect)
+        {
+            IReadOnlyList<TItem> empty = [];
+            Values = empty;
+            await ValuesChanged.InvokeAsync(empty);
+        }
+        else
+        {
+            Value = default;
+            await ValueChanged.InvokeAsync(default);
+        }
+
+        await OnClear.InvokeAsync();
+
+        if (_hasRendered)
+            await _triggerRef.FocusAsync();
     }
 
     [JSInvokable] public async Task CloseDropdown()

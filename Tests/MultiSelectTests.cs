@@ -305,6 +305,12 @@ public class MultiSelectTests : ComboTestContext
         Assert.Equal(["Apple", "Banana", "Cherry"], values);
         Assert.Single(cut.FindAll(".combo-dropdown"));
 
+        // The search still holds "Ch": the first Escape empties it, the second one closes.
+        await cut.Find(".combo-search-input").KeyDownAsync(Escape);
+        Assert.Single(cut.FindAll(".combo-dropdown"));
+        Assert.Equal("", cut.Find(".combo-search-input").GetAttribute("value"));
+        Assert.Equal(3, cut.FindAll(".combo-item").Count);
+
         await cut.Find(".combo-search-input").KeyDownAsync(Escape);
         Assert.Empty(cut.FindAll(".combo-dropdown"));
         AssertTriggerWasFocusedLast(cut.Instance);

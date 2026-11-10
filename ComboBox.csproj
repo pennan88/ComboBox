@@ -12,8 +12,8 @@
     <Nullable>enable</Nullable>
     <RootNamespace>ComboBox</RootNamespace>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <!-- The test project lives below this folder; keep it out of the library. -->
-    <DefaultItemExcludes>$(DefaultItemExcludes);Tests/**</DefaultItemExcludes>
+    <!-- The test and demo projects live below this folder; keep them out of the library. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);Tests/**;Demo/**</DefaultItemExcludes>
   </PropertyGroup>
 
 
