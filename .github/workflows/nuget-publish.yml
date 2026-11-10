@@ -24,14 +24,20 @@ jobs:
       - name: 🔄 Restore
         run: dotnet restore
 
+      # Runs up to 45 published 1.1.<run> (last: 1.1.45, which shipped the Dropdown 2.0 features).
+      # The 1.2 line starts at run 46 (1.2.0); every later push to main gets the next patch number.
+      # For the next minor, change the prefix and set the offset to the run number it starts at.
+      - name: 🔢 Version
+        run: echo "PACKAGE_VERSION=1.2.$(( ${{ github.run_number }} - 46 ))" >> "$GITHUB_ENV"
+
       - name: 🏗️ Build
-        run: dotnet build -c Release /p:PackageVersion=1.1.${{ github.run_number }}
+        run: dotnet build -c Release /p:PackageVersion=${{ env.PACKAGE_VERSION }}
 
       - name: 🧪 Test
         run: dotnet test Tests/ComboBox.Tests.csproj -c Release --no-build
 
       - name: 🛠️ Pack
-        run: dotnet pack -c Release /p:PackageVersion=1.1.${{ github.run_number }} --output ./nupkgs
+        run: dotnet pack -c Release /p:PackageVersion=${{ env.PACKAGE_VERSION }} --output ./nupkgs
       
       - name: NuGet login (OIDC → temp API key)
         uses: NuGet/login@v1
