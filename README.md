@@ -2,6 +2,9 @@
 
 A reusable Blazor WebAssembly / Server component: a **virtualized, searchable Combobox (Autocomplete Select)** designed for large datasets. This is a pure C# and Razor component without external UI dependencies.
 
+**Live demo:** https://pennan88.github.io/ComboBox/ — try every option of `<Select>` and `<Combobox>`.
+Run it locally with `dotnet run --project Demo/ComboBox.Demo.csproj` (Blazor WebAssembly, .NET 10).
+
 ## ✔️ Purpose
 
 Create a modern dropdown input for Blazor apps that supports:

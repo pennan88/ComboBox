@@ -216,6 +216,28 @@ mark {
     color: var(--demo-muted);
 }
 
+.app-loading {
+    padding: 24px 16px;
+    color: var(--demo-muted);
+}
+
+#blazor-error-ui {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 10000;
+    padding: 8px 16px;
+    background: #fff4e5;
+    border-top: 1px solid #f5c26b;
+}
+
+#blazor-error-ui .dismiss {
+    float: right;
+    cursor: pointer;
+}
+
 .log ol {
     margin: 0;
     padding-left: 24px;

@@ -1,13 +1,7 @@
 using ComboBox.Demo;
+using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 
-var builder = WebApplication.CreateBuilder(args);
+var builder = WebAssemblyHostBuilder.CreateDefault(args);
+builder.RootComponents.Add<App>("#app");
 
-builder.Services.AddRazorComponents().AddInteractiveServerComponents();
-
-var app = builder.Build();
-
-app.UseAntiforgery();
-app.MapStaticAssets();
-app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
-
-app.Run();
+await builder.Build().RunAsync();

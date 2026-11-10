@@ -1,0 +1,75 @@
+name: Demo on GitHub Pages
+
+# Publishes the Blazor WebAssembly demo (Demo/) to https://<owner>.github.io/<repo>/.
+# Requires Settings → Pages → Build and deployment → Source: "GitHub Actions".
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "Components/**"
+      - "wwwroot/**"
+      - "Demo/**"
+      - "ComboBox.csproj"
+      - ".github/workflows/demo-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a newer push replaces a queued one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🏗️ Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.x"
+
+      - name: 🛠️ Publish demo
+        run: dotnet publish Demo/ComboBox.Demo.csproj -c Release -o publish
+
+      - name: 🔧 Prepare for GitHub Pages
+        run: |
+          site=publish/wwwroot
+          # A project site lives under /<repo>/, so the app's base path must match.
+          base="/${GITHUB_REPOSITORY#*/}/"
+          sed -i "s|<base href=\"/\" />|<base href=\"$base\" />|" "$site/index.html"
+          grep -q "<base href=\"$base\" />" "$site/index.html"
+          # The precompressed copies still carry the old base path; Pages would not use them anyway.
+          rm -f "$site/index.html.br" "$site/index.html.gz"
+          # Keep folders that start with an underscore (_framework, _content).
+          touch "$site/.nojekyll"
+          # Unknown paths load the app instead of GitHub's 404 page.
+          cp "$site/index.html" "$site/404.html"
+
+      - name: ⚙️ Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: 📦 Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: publish/wwwroot
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: 🚀 Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
