@@ -209,6 +209,23 @@ public class DropdownDesignTests : ComboTestContext
     }
 
     [Fact]
+    public async Task ClosingRightAfterOpening_KeepsFocusOnTheTrigger()
+    {
+        // Opening focuses the search input after a short delay. A close that comes first (a fast
+        // "Done" click, or a slow CI runner) must not have that late focus pull focus back.
+        var cut = RenderFruits();
+        cut.Instance.SearchFocusDelay = TimeSpan.FromMilliseconds(300);
+
+        // The search input is on screen but has not been focused yet when the dropdown closes.
+        await OpenCombobox(cut);
+        await cut.InvokeAsync(() => cut.Instance.CloseAsync());
+        await Task.Delay(500);
+
+        Assert.Empty(cut.FindAll(".combo-dropdown"));
+        AssertFocusedLast(cut.Instance, "_triggerRef");
+    }
+
+    [Fact]
     public async Task Select_CloseAsync_ClosesTheDropdown()
     {
         var cut = RenderComponent<Select<string>>(p => p.Add(c => c.Items, Fruits));
