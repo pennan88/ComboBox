@@ -1,0 +1,226 @@
+/* Demo page only. Mimics the kind of styling a wrapper (e.g. .adapt-combo / .adapt-dropdown) adds. */
+:root {
+    --demo-bg: #f6f7f8;
+    --demo-panel: #fff;
+    --demo-text: #1d2125;
+    --demo-muted: #5e6c7a;
+    --demo-error: #c9372c;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: var(--demo-bg);
+    color: var(--demo-text);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 15px;
+}
+
+.demo {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px 16px 64px;
+}
+
+h1 {
+    margin: 0 0 4px;
+}
+
+h2 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.lead,
+.hint {
+    color: var(--demo-muted);
+}
+
+.hint {
+    font-size: 13px;
+    margin: 0 0 12px;
+}
+
+.panel {
+    background: var(--demo-panel);
+    border: 1px solid #dfe1e6;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.settings-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    margin-bottom: 8px;
+}
+
+.settings-grid label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
+    gap: 16px;
+}
+
+.grid .panel {
+    margin-bottom: 0;
+}
+
+.grid .panel.wide {
+    grid-column: 1 / -1;
+}
+
+.field {
+    max-width: 100%;
+}
+
+/* Rows with a title and a description */
+.row {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.row-title,
+.row-desc {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.row-desc {
+    font-size: 12px;
+    color: var(--demo-muted);
+}
+
+.row-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+mark {
+    background: #fff1b8;
+    color: inherit;
+    padding: 0;
+}
+
+/* External label with a required marker and an info button */
+.adapt-label-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+    font-size: 14px;
+}
+
+.required {
+    color: var(--demo-muted);
+    font-weight: normal;
+}
+
+.info {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1px solid var(--demo-muted);
+    background: transparent;
+    color: var(--demo-muted);
+    font-size: 11px;
+    line-height: 1;
+    padding: 0;
+    cursor: help;
+}
+
+.help,
+.error {
+    margin: 4px 0 0;
+    font-size: 13px;
+}
+
+.help {
+    color: var(--demo-muted);
+}
+
+.error {
+    color: var(--demo-error);
+}
+
+.combo-invalid .combo-trigger {
+    border-color: var(--demo-error);
+}
+
+.footer-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    opacity: 1;
+}
+
+.combo-footer:has(.footer-actions) {
+    opacity: 1;
+}
+
+.btn {
+    border: 1px solid #c1c7d0;
+    background: #fff;
+    border-radius: 4px;
+    padding: 4px 12px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 13px;
+}
+
+.btn.small {
+    padding: 2px 8px;
+    font-size: 12px;
+}
+
+.error-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    color: var(--demo-error);
+    font-size: 14px;
+    text-align: center;
+}
+
+.group-header {
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.group-footer {
+    font-size: 12px;
+    color: var(--demo-muted);
+}
+
+.custom-loading {
+    font-size: 14px;
+    color: var(--demo-muted);
+}
+
+.log ol {
+    margin: 0;
+    padding-left: 24px;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 13px;
+    max-height: 240px;
+    overflow: auto;
+}

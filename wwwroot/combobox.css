@@ -76,6 +76,65 @@
     font-size: 14px;
 }
 
+/* StartContent: leading icon or avatar before the value or placeholder */
+.combo-start-content {
+    flex: 0 0 auto;
+    margin-right: 8px;
+}
+
+.combo-trigger-search .combo-start-content {
+    margin-right: 0; /* the search trigger already has an 8px gap */
+}
+
+/* Loading: spinner next to the chevron (and in the loading row with LoadingText) */
+.combo-spinner {
+    flex: 0 0 auto;
+    margin-left: 8px;
+}
+
+.combo-trigger-search .combo-spinner {
+    margin-left: 0;
+}
+
+.combo-spinner svg {
+    animation: combo-spin 1s linear infinite;
+}
+
+@keyframes combo-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .combo-spinner svg {
+        animation-duration: 3s;
+    }
+}
+
+/* Clearable: the clear button is a sibling of the trigger button (nested buttons are invalid HTML),
+   laid over a spacer inside the trigger, 8px left of the chevron. If you change the trigger's right
+   padding or the chevron size, set --combo-clear-offset to padding + chevron width + 8px. */
+.combo-trigger-wrapper {
+    position: relative;
+}
+
+.combo-clear-spacer {
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    margin-left: 8px;
+}
+
+.combo-clear-value {
+    position: absolute;
+    top: 50%;
+    right: var(--combo-clear-offset, 36px);
+    width: 16px;
+    height: 16px;
+    transform: translateY(-50%);
+}
+
 /* Dropdown panel */
 .combo-dropdown {
     box-sizing: border-box;
@@ -307,9 +366,8 @@
     border-bottom: none;
 }
 
-.combo-item:hover {
-    background-color: var(--primary-50);
-}
+/* No :hover background: the row under a moving mouse becomes .highlighted (see combobox.js), and a
+   :hover rule would also paint rows that merely scroll under a still pointer. */
 
 .combo-item-disabled,
 .combo-item-disabled:hover {
@@ -322,8 +380,9 @@
     background-color: var(--primary-50);
 }
 
+/* Disabled rows are reachable with the arrow keys (so their reason is read out); keep the active one visible. */
 .combo-item-disabled.highlighted {
-    background-color: transparent;
+    background-color: var(--primary-50);
 }
 
 .combo-item-content {
@@ -411,6 +470,20 @@
 .combo-loading-row .progress {
     position: static;
     transform: none;
+}
+
+/* LoadingText: spinner + text instead of the dots */
+.combo-loading-row {
+    gap: 8px;
+}
+
+.combo-loading-row .combo-spinner {
+    margin-left: 0;
+}
+
+/* DataProvider failed (ErrorText / ErrorTemplate) */
+.combo-error {
+    flex-shrink: 0;
 }
 
 /* Combobox reload indicator: a 2px row that is always present at the top of the dropdown, so

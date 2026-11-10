@@ -104,6 +104,32 @@ window.comboBoxRegisterOutsideClick = (element, dotNetHelper, portalId, keepFocu
         }
     }
 
+    // The mouse makes a row the active option only when it really moves. A row that slides under a
+    // still pointer while the keyboard scrolls the list must not steal the highlight, so this uses
+    // mousemove (with a position check, as some browsers fire it after scrolling) rather than
+    // mouseenter/:hover, and only calls .NET when the row under the pointer is not highlighted yet.
+    let lastPointerX = null;
+    let lastPointerY = null;
+    function highlightOnPointerMove(e) {
+        if (e.screenX === lastPointerX && e.screenY === lastPointerY) {
+            return;
+        }
+        lastPointerX = e.screenX;
+        lastPointerY = e.screenY;
+
+        const portal = getPortal();
+        if (!portal || !(e.target instanceof Element) || !portal.contains(e.target)) {
+            return;
+        }
+
+        const row = e.target.closest('.combo-item[role="option"]');
+        if (!row || !row.id || row.classList.contains('highlighted') || row.classList.contains('combo-item-disabled')) {
+            return;
+        }
+
+        dotNetHelper.invokeMethodAsync("HighlightOptionFromPointer", row.id);
+    }
+
     function onTouchStart(e) {
         if (e.touches.length > 0) {
             lastTouchY = e.touches[0].clientY;
@@ -137,6 +163,7 @@ window.comboBoxRegisterOutsideClick = (element, dotNetHelper, portalId, keepFocu
     if (multiSelect) {
         document.addEventListener("keydown", cancelToggleSpace);
     }
+    document.addEventListener("mousemove", highlightOnPointerMove, { passive: true });
     document.addEventListener("touchstart", onTouchStart, { passive: true });
     document.addEventListener("touchmove", blockOverlayTouchMove, { passive: false });
     document.addEventListener("touchend", onTouchEnd, { passive: true });
@@ -149,6 +176,7 @@ window.comboBoxRegisterOutsideClick = (element, dotNetHelper, portalId, keepFocu
             document.removeEventListener("wheel", blockOverlayWheel);
             document.removeEventListener("keydown", blockOverlayKeyDown);
             document.removeEventListener("keydown", cancelToggleSpace);
+            document.removeEventListener("mousemove", highlightOnPointerMove);
             document.removeEventListener("touchstart", onTouchStart);
             document.removeEventListener("touchmove", blockOverlayTouchMove);
             document.removeEventListener("touchend", onTouchEnd);
@@ -158,18 +186,48 @@ window.comboBoxRegisterOutsideClick = (element, dotNetHelper, portalId, keepFocu
 };
 
 
-window.comboBoxScrollToHighlighted = (root, portalId) => {
+window.comboBoxScrollToHighlighted = (root, portalId, optionId) => {
     if (!root && !portalId) return;
 
+    // The option id comes from .NET, so the right row is found even if the render batch that moves
+    // the .highlighted class has not been applied yet (fast key repeat).
     const portal = portalId ? document.getElementById(portalId) : null;
     const highlighted =
+        (optionId && document.getElementById(optionId)) ||
         (portal && portal.querySelector('.combo-item.highlighted, .add-button.highlighted')) ||
         (root && root.querySelector('.combo-item.highlighted, .add-button.highlighted'));
 
-    if (highlighted) {
-        highlighted.scrollIntoView({block: 'center', behavior: 'smooth'});
+    if (!highlighted) return;
+
+    // Scroll the results list only. scrollIntoView() would also scroll every scrollable ancestor,
+    // including the page itself, whenever the dropdown was not already centred in the window.
+    const container = highlighted.closest('.combo-content-container');
+    if (!container) return;
+
+    // Moving up onto the first row of a group should also reveal the group's header.
+    const header = highlighted.previousElementSibling;
+    const top = (header && header.classList.contains('combo-group-header') ? header : highlighted).getBoundingClientRect().top;
+    const bottom = highlighted.getBoundingClientRect().bottom;
+    const box = container.getBoundingClientRect();
+
+    if (top < box.top) {
+        container.scrollTop -= box.top - top;
+    } else if (bottom > box.bottom) {
+        container.scrollTop += bottom - box.bottom;
     }
 };
+
+// The arrow key that opens a closed dropdown arrives before the dropdown registers its own key
+// handling (comboBoxRegisterOutsideClick), so its default action would scroll the page, and in a
+// text input move the caret. Arrow keys on a combobox trigger or search input never do either.
+document.addEventListener("keydown", (e) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    if (!(e.target instanceof Element)) return;
+
+    if (e.target.matches('.combo-container [role="combobox"], .combo-search-input')) {
+        e.preventDefault();
+    }
+});
 
 window.portalHelper = (function () {
 
@@ -204,6 +262,22 @@ function resolvePreferredHeight(dropdown, measureClass) {
     }
 }
 
+function resolveWidth(triggerWidth, options) {
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;top:-9999px;left:-9999px;box-sizing:border-box';
+    probe.style.width = options.extra ? `calc(${triggerWidth}px + ${options.extra})` : `${triggerWidth}px`;
+    if (options.minWidth) probe.style.minWidth = options.minWidth;
+    if (options.maxWidth) probe.style.maxWidth = options.maxWidth;
+    document.body.appendChild(probe);
+
+    try {
+        const measured = probe.getBoundingClientRect().width;
+        return Number.isFinite(measured) && measured > 0 ? measured : triggerWidth;
+    } finally {
+        probe.remove();
+    }
+}
+
 return {
     appendToBody: function (id) {
         try {
@@ -227,7 +301,7 @@ return {
             console.error("removeFromBody error:", err);
         }
     },
-    getPosition: function (triggerId, portalId, measureClass) {
+    getPosition: function (triggerId, portalId, measureClass, widthOptions) {
         const trigger = document.getElementById(triggerId);
         if (!trigger) return null;
 
@@ -240,14 +314,47 @@ return {
         const rect = trigger.getBoundingClientRect();
         const spaceBelow = window.innerHeight - rect.bottom - gap;
         const fitsBelow = spaceBelow >= preferredHeight;
+        const top = fitsBelow
+            ? (rect.bottom + window.scrollY + gap)
+            : (rect.top + window.scrollY - gap);
+
+        if (!widthOptions) {
+            return {
+                top: top,
+                left: rect.left + window.scrollX,
+                width: rect.width,
+                placeAbove: !fitsBelow
+            };
+        }
+
+        // DropdownMinWidth / DropdownMaxWidth: resolve the width in pixels (CSS lengths such as rem
+        // or vw resolve on a probe), never narrower than the trigger, then anchor it and keep it
+        // inside the viewport horizontally.
+        const width = Math.max(rect.width, resolveWidth(rect.width, widthOptions));
+        const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+        const margin = 8;
+
+        let left;
+        switch (widthOptions.anchor) {
+            case 'Right':
+                left = rect.right - width;
+                break;
+            case 'Center':
+                left = rect.left + rect.width / 2 - width / 2;
+                break;
+            default:
+                left = rect.left;
+        }
+
+        left = Math.min(left, viewportWidth - margin - width);
+        left = Math.max(left, margin);
 
         return {
-            top: fitsBelow
-                ? (rect.bottom + window.scrollY + gap)
-                : (rect.top + window.scrollY - gap),
-            left: rect.left + window.scrollX,
-            width: rect.width,
-            placeAbove: !fitsBelow
+            top: top,
+            left: left + window.scrollX,
+            width: width,
+            placeAbove: !fitsBelow,
+            resolved: true
         };
     }
 };

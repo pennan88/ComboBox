@@ -103,16 +103,101 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
     [Parameter]
     public string? Label { get; set; }
 
+    /// <summary>
+    /// Template for the content of each row, with the row's state (selected, highlighted, disabled).
+    /// <c>SearchText</c> is always empty. Takes precedence over <see cref="ItemTemplate"/> when both are set.
+    /// </summary>
+    [Parameter]
+    public RenderFragment<ComboItemContext<TItem>>? ItemContentTemplate { get; set; }
+
+    /// <summary>
+    /// Shows a clear (×) button next to the chevron while there is a value (<see cref="Value"/> or
+    /// <see cref="Values"/>). Clicking it resets the value, invokes <see cref="OnClear"/> and focuses the trigger.
+    /// </summary>
+    [Parameter]
+    public bool Clearable { get; set; }
+
+    /// <summary>Accessible name of the clear button shown with <see cref="Clearable"/>.</summary>
+    [Parameter]
+    public string ClearButtonAriaLabel { get; set; } = "Clear selection";
+
+    /// <summary>Invoked after the clear button has reset the value.</summary>
+    [Parameter]
+    public EventCallback OnClear { get; set; }
+
+    /// <summary>Shows a spinner in the trigger next to the chevron and sets <c>aria-busy</c>. The trigger stays usable.</summary>
+    [Parameter]
+    public bool Loading { get; set; }
+
+    /// <summary>
+    /// Shown in the dropdown when the <see cref="DataProvider"/> throws. The context carries the exception
+    /// and a <c>Retry</c> function that calls <see cref="RefreshAsync"/>.
+    /// </summary>
+    [Parameter]
+    public RenderFragment<ComboErrorContext>? ErrorTemplate { get; set; }
+
+    /// <summary>Text of the default error row (when <see cref="ErrorTemplate"/> is not set), also announced to screen readers.</summary>
+    [Parameter]
+    public string ErrorText { get; set; } = "Something went wrong.";
+
+    /// <summary>Text shown while the <see cref="DataProvider"/> loads.</summary>
+    [Parameter]
+    public string LoadingText { get; set; } = "Loading...";
+
+    /// <summary>Replaces the loading text and progress dots while the <see cref="DataProvider"/> loads.</summary>
+    [Parameter]
+    public RenderFragment? LoadingTemplate { get; set; }
+
+    /// <summary>Announced to screen readers (aria-live) while the <see cref="DataProvider"/> loads.</summary>
+    [Parameter]
+    public string LoadingAnnouncementText { get; set; } = "Loading results";
+
+    /// <summary>Static content rendered at the bottom of the dropdown, e.g. a "Done" button calling <see cref="CloseAsync"/>.</summary>
+    [Parameter]
+    public RenderFragment? FooterTemplate { get; set; }
+
+    /// <summary>Id(s) of elements describing the field (help or error text), set as <c>aria-describedby</c> on the trigger.</summary>
+    [Parameter]
+    public string? AriaDescribedBy { get; set; }
+
+    /// <summary>Sets <c>aria-invalid="true"</c> on the trigger and the class <c>combo-invalid</c> on the root.</summary>
+    [Parameter]
+    public bool Invalid { get; set; }
+
+    /// <summary>
+    /// Id(s) of an external label, set as <c>aria-labelledby</c> on the trigger and the listbox instead of
+    /// the <c>aria-label</c> built from <see cref="Label"/> or <see cref="Placeholder"/>.
+    /// </summary>
+    [Parameter]
+    public string? AriaLabelledBy { get; set; }
+
+    /// <summary>
+    /// Leading content in the trigger before the value or placeholder, e.g. an icon or an avatar.
+    /// Shown also when nothing is selected. Must not contain interactive elements (it sits inside a button).
+    /// </summary>
+    [Parameter]
+    public RenderFragment? StartContent { get; set; }
+
+    /// <summary>Minimum dropdown width as a CSS length. The dropdown is never narrower than the trigger and stays inside the viewport.</summary>
+    [Parameter]
+    public string? DropdownMinWidth { get; set; }
+
+    /// <summary>Maximum dropdown width as a CSS length. It does not shrink the dropdown below the trigger width.</summary>
+    [Parameter]
+    public string? DropdownMaxWidth { get; set; }
+
     private string PortalId { get; } = $"portal-{Guid.NewGuid()}";
 
     private string Classes => new ClassBuilder()
         .AddClass("combo-container select-container")
         .AddClass("combo-disabled", Disabled)
+        .AddClass("combo-invalid", Invalid)
         .AddClass(Class)
         .Build();
 
     private string InputClasses => new ClassBuilder()
         .AddClass("combo-trigger select-trigger")
+        .AddClass("combo-trigger-clearable", ShowClearValueButton)
         .AddClass(InputClass)
         .Build();
 
@@ -121,7 +206,23 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
         .AddClass(DropdownClass)
         .Build();
 
-    private string TriggerAriaLabel => string.IsNullOrWhiteSpace(Label) ? Placeholder : Label;
+    private string? TriggerAriaLabel => !string.IsNullOrWhiteSpace(AriaLabelledBy) ? null
+        : string.IsNullOrWhiteSpace(Label) ? Placeholder : Label;
+
+    private string? AriaLabelledByOrNull => string.IsNullOrWhiteSpace(AriaLabelledBy) ? null : AriaLabelledBy;
+
+    private string? AriaDescribedByOrNull => string.IsNullOrWhiteSpace(AriaDescribedBy) ? null : AriaDescribedBy;
+
+    private bool HasValue => MultiSelect ? Values is { Count: > 0 } : Value is not null;
+
+    private bool ShowClearValueButton => Clearable && !Disabled && HasValue;
+
+    private string? TriggerAriaInvalid => Invalid ? "true" : null;
+
+    private string? TriggerAriaBusy => Loading ? "true" : null;
+
+    // Set when the DataProvider threw; cleared when the next load starts.
+    private Exception? _loadError;
     private List<TItem> ItemsList { get; set; } = [];
 
     private ElementReference? _rootRef;
@@ -260,6 +361,7 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
         var token = _loadCts.Token;
 
         IsLoading = true;
+        _loadError = null;
         StateHasChanged();
 
         try
@@ -271,8 +373,16 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
             ItemsList = items.ToList();
             SetHighlightedIndexToSelectedItem();
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        catch (Exception exception)
         {
+            // A cancelled load was replaced or the dropdown closed. Anything else is shown through
+            // ErrorTemplate / ErrorText instead of surfacing as an unhandled exception in the event handler.
+            if (!token.IsCancellationRequested)
+            {
+                _loadError = exception;
+                ItemsList = [];
+                _highlightedIndex = -1;
+            }
         }
         finally
         {
@@ -292,7 +402,8 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
 
     private void EnsureHighlightedIndexInRange()
     {
-        if (_highlightedIndex < 0 || _highlightedIndex >= ItemsList.Count || IsItemDisabled(ItemsList[_highlightedIndex]))
+        // A disabled item may be highlighted: the user can arrow onto it.
+        if (_highlightedIndex < 0 || _highlightedIndex >= ItemsList.Count)
             _highlightedIndex = FindNextEnabledIndex(0, 1);
     }
 
@@ -307,6 +418,84 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
     private bool IsItemDisabled(TItem item)
     {
         return ItemDisabledFunc?.Invoke(item) == true;
+    }
+
+    private string? AriaDisabled(TItem item) => IsItemDisabled(item) ? "true" : null;
+
+    private ComboItemContext<TItem> ItemContext(TItem item) =>
+        new(item, IsSelectedItem(item), IsHighlighted(item), IsItemDisabled(item), "");
+
+    private ComboErrorContext ErrorContext => new(_loadError!, RefreshAsync);
+
+    private bool HasHighlightedItem => _highlightedIndex >= 0 && _highlightedIndex < ItemsList.Count;
+
+    /// <summary>
+    /// Reloads the items from <see cref="DataProvider"/> while the dropdown is open.
+    /// Does nothing while it is closed or when <see cref="Items"/> is used.
+    /// </summary>
+    public Task RefreshAsync() => InvokeAsync(async () =>
+    {
+        if (!IsOpen || DataProvider is null)
+            return;
+
+        await LoadItemsAsync();
+    });
+
+    /// <summary>
+    /// Closes the dropdown and returns focus to the trigger, e.g. from a "Done" button in <see cref="FooterTemplate"/>.
+    /// Does nothing while the dropdown is closed.
+    /// </summary>
+    public Task CloseAsync() => InvokeAsync(async () =>
+    {
+        if (!IsOpen)
+            return;
+
+        await CloseDropdownAsync(true);
+        StateHasChanged();
+    });
+
+    /// <summary>
+    /// Called by combobox.js when the mouse actually moves onto another row (not when a row only slides
+    /// under a still pointer). Disabled rows are skipped.
+    /// </summary>
+    [JSInvokable]
+    public Task HighlightOptionFromPointer(string optionId) => InvokeAsync(() =>
+    {
+        if (!IsOpen)
+            return;
+
+        var index = ItemsList.FindIndex(item => GetOptionId(item) == optionId);
+        if (index < 0 || index == _highlightedIndex || IsItemDisabled(ItemsList[index]))
+            return;
+
+        _highlightedIndex = index;
+        StateHasChanged();
+    });
+
+    private async Task ClearValueAsync()
+    {
+        if (Disabled)
+            return;
+
+        if (IsOpen)
+            await CloseDropdownAsync(false);
+
+        if (MultiSelect)
+        {
+            IReadOnlyList<TItem> empty = [];
+            Values = empty;
+            await ValuesChanged.InvokeAsync(empty);
+        }
+        else
+        {
+            Value = default;
+            await ValueChanged.InvokeAsync(default);
+        }
+
+        await OnClear.InvokeAsync();
+
+        if (_hasRendered)
+            await _triggerRef.FocusAsync();
     }
 
     private string GetItemClasses(TItem item)
@@ -346,9 +535,10 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
         }
         else if (e.Key == "Enter" && IsOpen)
         {
-            if (_highlightedIndex >= 0 && _highlightedIndex < ItemsList.Count && !IsItemDisabled(ItemsList[_highlightedIndex]))
+            if (HasHighlightedItem)
             {
-                // Enter also clicks the trigger button, which would toggle the dropdown.
+                // Enter also clicks the trigger button, which would toggle the dropdown. On a disabled
+                // item nothing happens and the dropdown stays open.
                 _skipNextToggle = true;
                 await ItemClicked(ItemsList[_highlightedIndex]);
             }
@@ -356,7 +546,7 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
         else if (e.Key == " " && IsOpen && MultiSelect)
         {
             // combobox.js cancels the keydown, so Space does not click the trigger here.
-            if (_highlightedIndex >= 0 && _highlightedIndex < ItemsList.Count)
+            if (HasHighlightedItem)
                 await ItemClicked(ItemsList[_highlightedIndex]);
         }
         else if (e.Key == "Tab" && IsOpen && MultiSelect)
@@ -365,13 +555,17 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Moves the highlight one row. Disabled items are reachable, so a screen reader announces them
+    /// (aria-disabled), but Enter, Space and click do not pick them.
+    /// </summary>
     private void MoveHighlight(int offset)
     {
         if (ItemsList.Count == 0)
             return;
 
         var startIndex = _highlightedIndex < 0 ? (offset > 0 ? 0 : ItemsList.Count - 1) : _highlightedIndex + offset;
-        _highlightedIndex = FindNextEnabledIndex(startIndex, offset);
+        _highlightedIndex = Math.Clamp(startIndex, 0, ItemsList.Count - 1);
     }
 
     private int FindNextEnabledIndex(int startIndex, int offset)
@@ -389,10 +583,36 @@ public partial class Select<TItem> : ComponentBase, IAsyncDisposable
         return -1;
     }
 
-    private async Task ScrollHighlightedItemIntoView()
+    // Set by keyboard navigation; the scroll runs in OnAfterRenderAsync. Calling into JS straight
+    // from the key handler would reach the browser before the new highlight has been rendered, so
+    // the list would always scroll to the previously highlighted row.
+    private bool _scrollToHighlightPending;
+
+    private Task ScrollHighlightedItemIntoView()
     {
-        if (Js is not null && _rootRef.HasValue)
-            await Js.InvokeVoidAsync("comboBoxScrollToHighlighted", _rootRef, PortalId);
+        _scrollToHighlightPending = true;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_scrollToHighlightPending)
+            return;
+
+        _scrollToHighlightPending = false;
+        if (Js is not null && _rootRef.HasValue && IsOpen)
+        {
+            try
+            {
+                var optionId = HasHighlightedItem ? GetOptionId(ItemsList[_highlightedIndex]) : null;
+                await Js.InvokeVoidAsync("comboBoxScrollToHighlighted", _rootRef, PortalId, optionId);
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit closed; nothing to scroll.
+            }
+        }
     }
 
     private async Task ItemClicked(TItem item)
