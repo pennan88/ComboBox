@@ -25,10 +25,11 @@ jobs:
         run: dotnet restore
 
       # Runs up to 45 published 1.1.<run> (last: 1.1.45, which shipped the Dropdown 2.0 features).
-      # The 1.2 line starts at run 46 (1.2.0); every later push to main gets the next patch number.
+      # Run 46 failed its tests and published nothing.
+      # The 1.2 line starts at run 47 (1.2.0); every later push to main gets the next patch number.
       # For the next minor, change the prefix and set the offset to the run number it starts at.
       - name: 🔢 Version
-        run: echo "PACKAGE_VERSION=1.2.$(( ${{ github.run_number }} - 46 ))" >> "$GITHUB_ENV"
+        run: echo "PACKAGE_VERSION=1.2.$(( ${{ github.run_number }} - 47 ))" >> "$GITHUB_ENV"
 
       - name: 🏗️ Build
         run: dotnet build -c Release /p:PackageVersion=${{ env.PACKAGE_VERSION }}

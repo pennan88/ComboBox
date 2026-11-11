@@ -471,6 +471,12 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
     // True once the user has moved the highlight (arrow keys or mouse). Until then a reload may move
     // the highlight to the first enabled item; afterwards it may rest on a disabled item.
     private bool _highlightMovedByUser;
+    // Incremented on every open, so a delayed focus can tell whether its dropdown is still the open one.
+    private int _openGeneration;
+
+    // How long after opening the search input gets focus. Internal so tests can widen the window
+    // between "search input rendered" and "search input focused".
+    internal TimeSpan SearchFocusDelay { get; set; } = TimeSpan.FromMilliseconds(10);
 
     private bool ShowError => !IsLoading && _loadError is not null;
     private bool ShowNoResults => !IsLoading && _loadError is null && _totalItemCount == 0;
@@ -668,7 +674,18 @@ public partial class Combobox<TItem> : ComponentBase, IAsyncDisposable
         ResetHighlight();
 
         if (!SearchInTrigger)
-            _ = Task.Delay(10).ContinueWith(_ => { InvokeAsync(() => _elementReference.FocusAsync()); });
+        {
+            // The search input only exists once the portal has rendered, hence the delay. If the
+            // dropdown closes (or closes and reopens) before it elapses, this focus belongs to a
+            // dropdown that is gone: it would pull focus away from the trigger CloseAsync/Escape
+            // just focused, onto an input that is no longer in the DOM.
+            var openGeneration = ++_openGeneration;
+            _ = Task.Delay(SearchFocusDelay).ContinueWith(_ => InvokeAsync(async () =>
+            {
+                if (IsOpen && openGeneration == _openGeneration)
+                    await _elementReference.FocusAsync();
+            }));
+        }
 
         if (!Virtualize)
         {
