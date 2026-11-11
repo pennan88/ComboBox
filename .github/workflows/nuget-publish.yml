@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+    # Changes to the demo alone do not change the package, so they do not publish a new version.
+    paths-ignore:
+      - "Demo/**"
+      - ".github/workflows/demo-pages.yml"
 
 jobs:
   build-and-publish:
