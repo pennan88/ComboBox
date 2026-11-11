@@ -3,16 +3,16 @@
 
 <main class="demo">
     <h1>ComboBox – demo</h1>
-    <p class="lead">Ändra inställningarna och prova fälten. Händelser loggas längst ner.</p>
+    <p class="lead">Change the settings and try the fields. Events are logged at the bottom.</p>
 
-    <section class="panel settings" aria-label="Inställningar">
-        <h2>Inställningar (gäller alla fält)</h2>
+    <section class="panel settings" aria-label="Settings">
+        <h2>Settings (apply to every field)</h2>
         <div class="settings-grid">
             <label><input type="checkbox" @bind="_disabled" /> Disabled</label>
-            <label><input type="checkbox" @bind="_invalid" /> Invalid (aria-invalid + feltext)</label>
-            <label><input type="checkbox" @bind="_loading" /> Loading (spinner i triggern)</label>
+            <label><input type="checkbox" @bind="_invalid" /> Invalid (aria-invalid + error text)</label>
+            <label><input type="checkbox" @bind="_loading" /> Loading (spinner in the trigger)</label>
             <label><input type="checkbox" @bind="_clearable" /> Clearable</label>
-            <label><input type="checkbox" @bind="_startContent" /> StartContent (ikon)</label>
+            <label><input type="checkbox" @bind="_startContent" /> StartContent (icon)</label>
             <label><input type="checkbox" @bind="_widthLimits" /> DropdownMinWidth 300px / MaxWidth 480px</label>
             <label><input type="checkbox" @bind="_highlightFirst" /> HighlightFirstItem</label>
             <label>
@@ -24,7 +24,7 @@
                 </select>
             </label>
             <label>
-                Fältbredd
+                Field width
                 <select @bind="_fieldWidth">
                     <option value="220px">220px</option>
                     <option value="320px">320px</option>
@@ -37,8 +37,8 @@
     <div class="grid">
         @* ---------------- Select, single ---------------- *@
         <section class="panel">
-            <h2>Select – enkelval</h2>
-            <p class="hint">Inaktiva personer går att nå med piltangenterna men inte välja. Rader med beskrivning via <code>ItemContentTemplate</code>.</p>
+            <h2>Select – single</h2>
+            <p class="hint">Inactive people can be reached with the arrow keys but not picked. Rows with a description through <code>ItemContentTemplate</code>.</p>
             <div class="field" style="width:@_fieldWidth">
                 <Select TItem="Person"
                         Items="@FewPeople"
@@ -46,13 +46,13 @@
                         @bind-Value:after="@(() => Log($"Select: Value = {_selectPerson?.Name ?? "null"}"))"
                         ToStringFunc="@(p => p.Name)"
                         ItemDisabledFunc="@(p => p.Inactive)"
-                        Label="Handläggare"
-                        Placeholder="Välj handläggare"
+                        Label="Assignee"
+                        Placeholder="Choose an assignee"
                         Disabled="_disabled"
                         Invalid="_invalid"
                         Loading="_loading"
                         Clearable="_clearable"
-                        ClearButtonAriaLabel="Rensa handläggare"
+                        ClearButtonAriaLabel="Clear assignee"
                         OnClear="@(() => Log("Select: OnClear"))"
                         StartContent="@(_startContent ? UserIcon : null)"
                         AnchorPosition="_anchor"
@@ -61,7 +61,7 @@
                     <ItemContentTemplate Context="row">
                         <span class="row">
                             <span class="row-title">@row.Item.Name</span>
-                            <span class="row-desc">@(row.IsDisabled ? "Inaktiv – kan inte väljas" : row.Item.Team)</span>
+                            <span class="row-desc">@(row.IsDisabled ? InactiveText : row.Item.Team)</span>
                         </span>
                     </ItemContentTemplate>
                 </Select>
@@ -70,23 +70,23 @@
 
         @* ---------------- Select, multi with Done ---------------- *@
         <section class="panel">
-            <h2>Select – flerval med ”Klar”</h2>
-            <p class="hint"><code>MultiSelect</code>, checkbox-rader och en Klar-knapp i <code>FooterTemplate</code> som anropar <code>CloseAsync()</code>.</p>
+            <h2>Select – multiple with “Done”</h2>
+            <p class="hint"><code>MultiSelect</code>, checkbox rows and a Done button in <code>FooterTemplate</code> that calls <code>CloseAsync()</code>.</p>
             <div class="field" style="width:@_fieldWidth">
                 <Select @ref="_teamSelect"
                         TItem="string"
                         Items="@Teams"
                         MultiSelect="true"
                         @bind-Values="_teams"
-                        @bind-Values:after="@(() => Log($"Select flerval: {string.Join(", ", _teams)}"))"
+                        @bind-Values:after="@(() => Log($"Select multiple: {string.Join(", ", _teams)}"))"
                         ShowCheckmarkInList="false"
-                        Label="Team"
-                        Placeholder="Välj team"
+                        Label="Teams"
+                        Placeholder="Choose teams"
                         Disabled="_disabled"
                         Invalid="_invalid"
                         Loading="_loading"
                         Clearable="_clearable"
-                        OnClear="@(() => Log("Select flerval: OnClear"))"
+                        OnClear="@(() => Log("Select multiple: OnClear"))"
                         AnchorPosition="_anchor"
                         DropdownMinWidth="@MinWidth"
                         DropdownMaxWidth="@MaxWidth">
@@ -98,7 +98,7 @@
                     </ItemContentTemplate>
                     <FooterTemplate>
                         <div class="footer-actions">
-                            <button type="button" class="btn" @onclick="() => _teamSelect!.CloseAsync()">Klar</button>
+                            <button type="button" class="btn" @onclick="() => _teamSelect!.CloseAsync()">Done</button>
                         </div>
                     </FooterTemplate>
                 </Select>
@@ -107,11 +107,11 @@
 
         @* ---------------- Combobox, static, external label ---------------- *@
         <section class="panel">
-            <h2>Combobox – egen etikett, FilterFunc, träffmarkering</h2>
-            <p class="hint">Sök på namn <em>eller</em> e-post (<code>FilterFunc</code>). Träffen markeras med <code>SplitByMatch</code>. Esc med text rensar först, sedan stänger.</p>
+            <h2>Combobox – external label, FilterFunc, match highlighting</h2>
+            <p class="hint">Search by name <em>or</em> email (<code>FilterFunc</code>). The match is marked with <code>SplitByMatch</code>. Escape with text clears the search first, then closes.</p>
             <div class="adapt-label-row">
-                <span id="owner-label" class="adapt-label">Ägare <span class="required">(obligatoriskt)</span></span>
-                <button type="button" class="info" aria-label="Mer information om ägare" title="Den som ansvarar för ärendet">i</button>
+                <span id="owner-label" class="adapt-label">Owner <span class="required">(required)</span></span>
+                <button type="button" class="info" aria-label="More about the owner" title="The person responsible for the case">i</button>
             </div>
             <div class="field" style="width:@_fieldWidth">
                 <Combobox TItem="Person"
@@ -123,17 +123,17 @@
                           ItemDisabledFunc="@(p => p.Inactive)"
                           AriaLabelledBy="owner-label"
                           AriaDescribedBy="@OwnerDescribedBy"
-                          Placeholder="Välj ägare"
-                          SearchPlaceholder="Sök namn eller e-post"
-                          NoResultsText="Inga träffar"
-                          ResultCountTextFunc="@SwedishCount"
+                          Placeholder="Choose an owner"
+                          SearchPlaceholder="Search name or email"
+                          NoResultsText="No matches"
+                          ResultCountTextFunc="@ResultCount"
                           ItemSize="52"
                           HighlightFirstItem="_highlightFirst"
                           Disabled="_disabled"
                           Invalid="_invalid"
                           Loading="_loading"
                           Clearable="_clearable"
-                          ClearButtonAriaLabel="Rensa ägare"
+                          ClearButtonAriaLabel="Clear owner"
                           OnClear="@(() => Log("Combobox: OnClear"))"
                           StartContent="@(_startContent ? UserIcon : null)"
                           AnchorPosition="_anchor"
@@ -145,7 +145,7 @@
                             <span class="row-desc">
                                 @if (row.IsDisabled)
                                 {
-                                    @("Inaktiv – kan inte väljas")
+                                    @InactiveText
                                 }
                                 else
                                 {
@@ -156,39 +156,39 @@
                     </ItemContentTemplate>
                 </Combobox>
             </div>
-            <p id="owner-help" class="help">Den som ansvarar för ärendet.</p>
+            <p id="owner-help" class="help">The person responsible for the case.</p>
             @if (_invalid)
             {
-                <p id="owner-error" class="error">Välj en ägare.</p>
+                <p id="owner-error" class="error">Choose an owner.</p>
             }
         </section>
 
         @* ---------------- Combobox, multi ---------------- *@
         <section class="panel">
-            <h2>Combobox – flerval</h2>
-            <p class="hint">Sökningen står kvar efter ett val så att du kan välja fler träffar. Klar-knappen stänger.</p>
+            <h2>Combobox – multiple</h2>
+            <p class="hint">The search stays after a pick, so you can pick more matches. The Done button closes.</p>
             <div class="field" style="width:@_fieldWidth">
                 <Combobox @ref="_membersCombo"
                           TItem="Person"
                           StaticData="@AllPeople"
                           MultiSelect="true"
                           @bind-Values="_members"
-                          @bind-Values:after="@(() => Log($"Combobox flerval: {_members.Count} valda"))"
+                          @bind-Values:after="@(() => Log($"Combobox multiple: {_members.Count} selected"))"
                           ToStringFunc="@(p => p.Name)"
-                          MultiSelectionTextFunc="@(v => v.Count == 1 ? v[0].Name : $"{v.Count} personer")"
+                          MultiSelectionTextFunc="@(v => v.Count == 1 ? v[0].Name : $"{v.Count} people")"
                           ItemDisabledFunc="@(p => p.Inactive)"
                           ShowCheckmarkInList="false"
-                          Label="Deltagare"
-                          Placeholder="Välj deltagare"
-                          SearchPlaceholder="Sök ..."
-                          ResultCountTextFunc="@SwedishCount"
+                          Label="Participants"
+                          Placeholder="Choose participants"
+                          SearchPlaceholder="Search..."
+                          ResultCountTextFunc="@ResultCount"
                           ItemSize="40"
                           HighlightFirstItem="_highlightFirst"
                           Disabled="_disabled"
                           Invalid="_invalid"
                           Loading="_loading"
                           Clearable="_clearable"
-                          OnClear="@(() => Log("Combobox flerval: OnClear"))"
+                          OnClear="@(() => Log("Combobox multiple: OnClear"))"
                           AnchorPosition="_anchor"
                           DropdownMinWidth="@MinWidth"
                           DropdownMaxWidth="@MaxWidth">
@@ -200,8 +200,8 @@
                     </ItemContentTemplate>
                     <FooterTemplate>
                         <div class="footer-actions">
-                            <span>@_members.Count valda</span>
-                            <button type="button" class="btn" @onclick="() => _membersCombo!.CloseAsync()">Klar</button>
+                            <span>@_members.Count selected</span>
+                            <button type="button" class="btn" @onclick="() => _membersCombo!.CloseAsync()">Done</button>
                         </div>
                     </FooterTemplate>
                 </Combobox>
@@ -210,13 +210,13 @@
 
         @* ---------------- Combobox, DataProvider ---------------- *@
         <section class="panel wide">
-            <h2>Combobox – DataProvider (laddning och fel)</h2>
+            <h2>Combobox – DataProvider (loading and errors)</h2>
             <div class="settings-grid">
-                <label><input type="checkbox" @bind="_simulateError" /> Låt providern kasta fel</label>
+                <label><input type="checkbox" @bind="_simulateError" /> Make the provider throw</label>
                 <label><input type="checkbox" @bind="_virtualize" /> Virtualize</label>
-                <label><input type="checkbox" @bind="_useLoadingTemplate" /> LoadingTemplate i stället för LoadingText</label>
+                <label><input type="checkbox" @bind="_useLoadingTemplate" /> LoadingTemplate instead of LoadingText</label>
                 <label>
-                    Fördröjning
+                    Delay
                     <select @bind="_delayMs">
                         <option value="0">0 ms</option>
                         <option value="400">400 ms</option>
@@ -224,7 +224,7 @@
                     </select>
                 </label>
             </div>
-            <p class="hint">Med fel påslaget visas <code>ErrorTemplate</code>; slå av felet och klicka ”Försök igen” (<code>Retry</code>). <code>LoadingText="Söker ..."</code> visas vid första laddningen.</p>
+            <p class="hint">With errors on, <code>ErrorTemplate</code> is shown; turn the error off and click “Try again” (<code>Retry</code>). <code>LoadingText="Searching..."</code> is shown on the first load.</p>
             <div class="field" style="width:@_fieldWidth">
                 @* The key recreates the component when Virtualize changes, as it is not meant to change while mounted. *@
                 <Combobox @key="_virtualize"
@@ -236,14 +236,14 @@
                           ToStringFunc="@(p => p.Name)"
                           ItemDisabledFunc="@(p => p.Inactive)"
                           Label="Person (server)"
-                          Placeholder="Sök person"
-                          SearchPlaceholder="Sök ..."
-                          LoadingText="Söker ..."
+                          Placeholder="Search for a person"
+                          SearchPlaceholder="Search..."
+                          LoadingText="Searching..."
                           LoadingTemplate="@(_useLoadingTemplate ? CustomLoading : null)"
-                          LoadingAnnouncementText="Laddar resultat"
-                          NoResultsText="Inga träffar"
-                          ErrorText="Kunde inte hämta personer."
-                          ResultCountTextFunc="@SwedishCount"
+                          LoadingAnnouncementText="Loading results"
+                          NoResultsText="No matches"
+                          ErrorText="Could not load people."
+                          ResultCountTextFunc="@ResultCount"
                           ItemSize="52"
                           HighlightFirstItem="_highlightFirst"
                           Disabled="_disabled"
@@ -263,8 +263,8 @@
                     </ItemContentTemplate>
                     <ErrorTemplate Context="error">
                         <div class="error-row">
-                            <span>Kunde inte hämta personer (@error.Exception.Message)</span>
-                            <button type="button" class="btn" @onclick="error.Retry">Försök igen</button>
+                            <span>Could not load people (@error.Exception.Message)</span>
+                            <button type="button" class="btn" @onclick="error.Retry">Try again</button>
                         </div>
                     </ErrorTemplate>
                 </Combobox>
@@ -273,10 +273,10 @@
 
         @* ---------------- Combobox, GroupBy with StaticData ---------------- *@
         <section class="panel wide">
-            <h2>Combobox – GroupBy med StaticData</h2>
-            <p class="hint">Personer grupperade per team. <code>GroupBy</code> kräver <code>Virtualize="false"</code> och att listan redan är sorterad på gruppen. Piltangenterna hoppar över gruppnamnen.</p>
+            <h2>Combobox – GroupBy with StaticData</h2>
+            <p class="hint">People grouped by team. <code>GroupBy</code> requires <code>Virtualize="false"</code> and a list that is already sorted by group. The arrow keys skip the group headers.</p>
             <div class="settings-grid">
-                <label><input type="checkbox" @bind="_groupFooter" /> GroupFooterTemplate (antal per grupp)</label>
+                <label><input type="checkbox" @bind="_groupFooter" /> GroupFooterTemplate (count per group)</label>
             </div>
             <div class="field" style="width:@_fieldWidth">
                 <Combobox TItem="Person"
@@ -289,11 +289,11 @@
                           ToStringFunc="@(p => p.Name)"
                           FilterFunc="@MatchesNameOrEmail"
                           ItemDisabledFunc="@(p => p.Inactive)"
-                          Label="Person per team"
-                          Placeholder="Välj person"
-                          SearchPlaceholder="Sök namn eller e-post"
-                          NoResultsText="Inga träffar"
-                          ResultCountTextFunc="@SwedishCount"
+                          Label="Person by team"
+                          Placeholder="Choose a person"
+                          SearchPlaceholder="Search name or email"
+                          NoResultsText="No matches"
+                          ResultCountTextFunc="@ResultCount"
                           HighlightFirstItem="_highlightFirst"
                           Disabled="_disabled"
                           Invalid="_invalid"
@@ -314,7 +314,7 @@
                             <span class="row-desc">
                                 @if (row.IsDisabled)
                                 {
-                                    @("Inaktiv – kan inte väljas")
+                                    @InactiveText
                                 }
                                 else
                                 {
@@ -328,11 +328,11 @@
         </section>
     </div>
 
-    <section class="panel log" aria-label="Händelselogg">
-        <h2>Händelser <button type="button" class="btn small" @onclick="() => _log.Clear()">Töm</button></h2>
+    <section class="panel log" aria-label="Event log">
+        <h2>Events <button type="button" class="btn small" @onclick="() => _log.Clear()">Clear</button></h2>
         @if (_log.Count == 0)
         {
-            <p class="hint">Inget ännu.</p>
+            <p class="hint">Nothing yet.</p>
         }
         <ol reversed>
             @foreach (var entry in _log)
@@ -344,11 +344,13 @@
 </main>
 
 @code {
+    private const string InactiveText = "Inactive – cannot be picked";
+
     private static readonly List<Person> AllPeople = Person.All.ToList();
     private static readonly List<Person> FewPeople = Person.All.Take(12).ToList();
     // GroupBy renders a header whenever the key changes, so the list must be sorted by group.
     private static readonly List<Person> PeopleByTeam = Person.All.OrderBy(p => p.Team).ThenBy(p => p.Name).ToList();
-    private static readonly List<string> Teams = ["Ekonomi", "Försäljning", "IT", "Support", "Ledning", "HR"];
+    private static readonly List<string> Teams = ["Finance", "Sales", "IT", "Support", "Management", "HR"];
 
     private bool _disabled;
     private bool _invalid;
@@ -374,7 +376,7 @@
     private bool _groupFooter;
 
     private static readonly RenderFragment<ComboGroupContext<Person>> GroupCount = group =>
-        @<span class="group-footer">@group.Items.Count i @group.Key</span>;
+        @<span class="group-footer">@group.Items.Count in @group.Key</span>;
 
     private Select<string>? _teamSelect;
     private Combobox<Person>? _membersCombo;
@@ -387,7 +389,8 @@
 
     private void Log(string message) => _log.Insert(0, $"{DateTime.Now:HH:mm:ss} {message}");
 
-    private static string SwedishCount(int n) => n == 1 ? "1 träff" : $"{n} träffar";
+    // Announced to screen readers only (aria-live); shows how ResultCountTextFunc localizes the count.
+    private static string ResultCount(int n) => n == 1 ? "1 match" : $"{n} matches";
 
     private static bool MatchesNameOrEmail(Person person, string search) =>
         person.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
@@ -433,5 +436,5 @@
         </svg>;
 
     private static readonly RenderFragment CustomLoading =
-        @<span class="custom-loading">⏳ Hämtar personer från servern …</span>;
+        @<span class="custom-loading">⏳ Fetching people from the server…</span>;
 }
